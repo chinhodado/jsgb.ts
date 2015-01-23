@@ -2,13 +2,51 @@
 ///<reference path="jsgb.debugger.ts"/>
 ///<reference path="jsgb.interrupts.ts"/>
 
-declare var gb_Toggle_Debugger; // in index.htm
-declare var gb_Show_Fps;
-declare var gbSeconds;
-declare var gbFrames;
-
 var gbRunInterval;
 var gbFpsInterval;
+
+var gbSeconds = 0;
+var gbFrames = 0;
+
+function gb_Resize_LCD() {
+    var resizeButton = <HTMLButtonElement>$('BX');
+    var lcd = <HTMLCanvasElement>$('LCD');
+    if (resizeButton.value == 'Size x2') {
+        resizeButton.value = 'Size x3';
+        lcd.style.width  = '320px';
+        lcd.style.height = '288px';
+    }
+    else if (resizeButton.value == 'Size x3') {
+        resizeButton.value = 'Size x1';
+        lcd.style.width  = '480px';
+        lcd.style.height = '432px';
+    }
+    else {
+        resizeButton.value = 'Size x2';
+        lcd.style.width  = '160px';
+        lcd.style.height = '144px';
+    }
+}
+
+function gb_Show_Fps() {
+    gbFrames += gbFPS;
+    gbSeconds++;
+    $('STATUS').innerHTML =
+    'Running: ' + gbFPS + ' ' +
+    'fps - Average: ' + (gbFrames / gbSeconds).toFixed(2) + ' - ' +
+    'Bank switches/s: ' + gbBankSwitchCount;
+    gbFPS = 0;
+    gbBankSwitchCount = 0;
+}
+
+function gb_Toggle_Debugger(show) {
+    $('DEBUGGER').style.height = (show) ? 'auto' : '0px';
+}
+
+window.onload = function () {
+    gb_Insert_Cartridge((<HTMLSelectElement>$('CARTRIDGE')).value, false);
+    gb_Toggle_Debugger((<HTMLInputElement>$('TOGGLE_DEBUGGER')).checked);
+}
 
 function gb_Frame() {
     gbEndFrame = false;
