@@ -77,13 +77,13 @@ function gb_LY_LYC_compare() { // LY - LYC Compare
 
 function gb_TIMER_Control() {
     // DIV control
-    if ((gbDIVTicks += gbCPUTicks) >= 256) {
+    if ((gbDIVTicks += cpu.gbCPUTicks) >= 256) {
         gbDIVTicks -= 256;
         gbMemory[_DIV_] = (++gbMemory[_DIV_]) & 0xFF; // inc DIV
     }
 
     // LCD Timing
-    gbLCDTicks += gbCPUTicks; // ScanLineCounter += InstructionCyclesCount
+    gbLCDTicks += cpu.gbCPUTicks; // ScanLineCounter += InstructionCyclesCount
     if (gbLCDTicks >= 456) { // when ScanLineCounter overflows -> new scanline
         gbLCDTicks -= 456;
         // I'm comparing LY and LYC before incrementing LY
@@ -105,7 +105,7 @@ function gb_TIMER_Control() {
 
     // Internal Timer
     if (gbRegTAC_TimerOn) {
-        if ((gbTimerTicks += gbCPUTicks) >= gbTimerOverflow) {
+        if ((gbTimerTicks += cpu.gbCPUTicks) >= gbTimerOverflow) {
             gbTimerTicks -= gbTimerOverflow;
             if ((++gbMemory[_TIMA_]) >= 256) {
                 gbMemory[_TIMA_] = gbMemory[_TMA_];

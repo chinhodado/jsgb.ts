@@ -17,52 +17,52 @@
 var gbInterrupts = [];
 
 function gb_Int_VBlank() { // IF/IE bit 0
-    gbIME = gbHalt = false;
+    cpu.gbIME = cpu.gbHalt = false;
     MEMW(_IF_, gbRegIF & 0xFE); // reset IF bit 0
-    MEMW(--SP, PC >> 8);
-    MEMW(--SP, PC & 0xFF);
-    PC = 0x0040;
-    gbCPUTicks += 32;
+    MEMW(--cpu.SP, cpu.PC >> 8);
+    MEMW(--cpu.SP, cpu.PC & 0xFF);
+    cpu.PC = 0x0040;
+    cpu.gbCPUTicks += 32;
 }
 
 function gb_Int_STAT() { // IF/IE bit 1
-    gbIME = gbHalt = false;
+    cpu.gbIME = cpu.gbHalt = false;
     MEMW(_IF_, gbRegIF & 0xFD); // reset IF bit 1
-    MEMW(--SP, PC >> 8);
-    MEMW(--SP, PC & 0xFF);
-    PC = 0x0048;
-    gbCPUTicks += 32;
+    MEMW(--cpu.SP, cpu.PC >> 8);
+    MEMW(--cpu.SP, cpu.PC & 0xFF);
+    cpu.PC = 0x0048;
+    cpu.gbCPUTicks += 32;
 }
 
 function gb_Int_Timer() { // IF/IE bit 2
-    gbIME = gbHalt = false;
+    cpu.gbIME = cpu.gbHalt = false;
     MEMW(_IF_, gbRegIF & 0xFB); // reset IF bit 2
-    MEMW(--SP, PC >> 8);
-    MEMW(--SP, PC & 0xFF);
-    PC = 0x0050;
-    gbCPUTicks += 32;
+    MEMW(--cpu.SP, cpu.PC >> 8);
+    MEMW(--cpu.SP, cpu.PC & 0xFF);
+    cpu.PC = 0x0050;
+    cpu.gbCPUTicks += 32;
 }
 
 function gb_Int_Serial() { // IF/IE bit 3
-    gbIME = gbHalt = false;
+    cpu.gbIME = cpu.gbHalt = false;
     MEMW(_IF_, gbRegIF & 0xF7); // reset IF bit 3
-    MEMW(--SP, PC >> 8);
-    MEMW(--SP, PC & 0xFF);
-    PC = 0x0058;
-    gbCPUTicks += 32;
+    MEMW(--cpu.SP, cpu.PC >> 8);
+    MEMW(--cpu.SP, cpu.PC & 0xFF);
+    cpu.PC = 0x0058;
+    cpu.gbCPUTicks += 32;
 }
 
 function gb_Int_Buttons() { // IF/IE bit 4
-    gbIME = gbHalt = false;
+    cpu.gbIME = cpu.gbHalt = false;
     MEMW(_IF_, gbRegIF & 0xEF); // reset IF bit 4
-    MEMW(--SP, PC >> 8);
-    MEMW(--SP, PC & 0xFF);
-    PC = 0x0060;
-    gbCPUTicks += 32;
+    MEMW(--cpu.SP, cpu.PC >> 8);
+    MEMW(--cpu.SP, cpu.PC & 0xFF);
+    cpu.PC = 0x0060;
+    cpu.gbCPUTicks += 32;
 }
 
 function gb_Init_Interrupts() {
-    gbIME = gbHalt = false;
+    cpu.gbIME = cpu.gbHalt = false;
     for (var i = 0; i < 32; i++) {
         if (i & 1) gbInterrupts[i] = gb_Int_VBlank; else
             if (i & 2) gbInterrupts[i] = gb_Int_STAT; else

@@ -23,7 +23,7 @@ function gb_Dump_All() {
     gb_Dump_CPU();
     gb_Dump_IORegs();
     //asmScroll.dragger.posY*(0xFFFF-dump_asm_h+1)
-    asmScroll.dragger.setpos(0, ((PC - 10 < 0) ? 0 : (PC - 10)) / (0xFFFF - dump_asm_h + 1));
+    asmScroll.dragger.setpos(0,((cpu.PC - 10 < 0) ? 0 : (cpu.PC - 10)) / (0xFFFF - dump_asm_h + 1));
     gb_Dump_ASM();
     gb_Dump_Mem();
     memScroll.update();
@@ -36,15 +36,15 @@ function gb_Dump_All() {
 // CPU //
 
 function gb_Dump_CPU() {
-    $('RA').innerHTML = 'A: ' + zf(hex(RA), 2) + br + sp(zf(bin(RA), 8), 4);
-    $('RB').innerHTML = 'B: ' + zf(hex(RB), 2) + br + sp(zf(bin(RB), 8), 4);
-    $('RC').innerHTML = 'C: ' + zf(hex(RC), 2) + br + sp(zf(bin(RC), 8), 4);
-    $('RD').innerHTML = 'D: ' + zf(hex(RD), 2) + br + sp(zf(bin(RD), 8), 4);
-    $('RE').innerHTML = 'E: ' + zf(hex(RE), 2) + br + sp(zf(bin(RE), 8), 4);
-    $('HL').innerHTML = '&nbsp;HL: ' + zf(hex(HL), 4) + br + sp(zf(bin(HL), 16), 4);
-    $('SP').innerHTML = '&nbsp;SP: ' + zf(hex(SP), 4) + br + sp(zf(bin(SP), 16), 4);
-    $('PC').innerHTML = '&nbsp;PC: ' + zf(hex(PC), 4) + br + sp(zf(bin(PC), 16), 4);
-    $('RF').innerHTML = 'Z:' + (FZ * 1) + ' N:' + (FN * 1) + '<br/' + '>H:' + (FH * 1) + ' C:' + (FC * 1);
+    $('RA').innerHTML = 'A: ' + zf(hex(cpu.RA), 2) + br + sp(zf(bin(cpu.RA), 8), 4);
+    $('RB').innerHTML = 'B: ' + zf(hex(cpu.RB), 2) + br + sp(zf(bin(cpu.RB), 8), 4);
+    $('RC').innerHTML = 'C: ' + zf(hex(cpu.RC), 2) + br + sp(zf(bin(cpu.RC), 8), 4);
+    $('RD').innerHTML = 'D: ' + zf(hex(cpu.RD), 2) + br + sp(zf(bin(cpu.RD), 8), 4);
+    $('RE').innerHTML = 'E: ' + zf(hex(cpu.RE), 2) + br + sp(zf(bin(cpu.RE), 8), 4);
+    $('HL').innerHTML = '&nbsp;HL: ' + zf(hex(cpu.HL), 4) + br + sp(zf(bin(cpu.HL), 16), 4);
+    $('SP').innerHTML = '&nbsp;SP: ' + zf(hex(cpu.SP), 4) + br + sp(zf(bin(cpu.SP), 16), 4);
+    $('PC').innerHTML = '&nbsp;PC: ' + zf(hex(cpu.PC), 4) + br + sp(zf(bin(cpu.PC), 16), 4);
+    $('RF').innerHTML = 'Z:' + (cpu.FZ * 1) + ' N:' + (cpu.FN * 1) + '<br/' + '>H:' + (cpu.FH * 1) + ' C:' + (cpu.FC * 1);
 }
 
 // SPECIAL REGISTERS //
@@ -74,8 +74,8 @@ function gb_Dump_IORegs() {
       'FFFF:IE&nbsp; &nbsp;' + sp(zf(bin(gbMemory[0xFFFF]), 8), 4) + br +
       '<hr>' +
       'Emulator vars' + br +
-      'IME: ' + gbIME + br +
-      'CPU Ticks: ' + gbCPUTicks + br +
+      'IME: ' + cpu.gbIME + br +
+      'CPU Ticks: ' + cpu.gbCPUTicks + br +
       'DIV Ticks: ' + gbDIVTicks + br +
       'LCD Ticks: ' + gbLCDTicks + br +
       'Timer Ticks: ' + gbTimerTicks + br +
@@ -175,7 +175,7 @@ function gb_Clear_All_Breakpoints() {
 }
 
 function gb_Show_Function(PC) {
-    var s = (MEMR(PC) == 0xCB) ? OPCB[MEMR(PC + 1)] : OP[MEMR(PC)];
+    var s = (MEMR(PC) == 0xCB) ? cpu.OPCB[MEMR(PC + 1)] : cpu.OP[MEMR(PC)];
     var ident = 0;
     s = s.toString().
           split('\n').join('').split('\t').join('').split(' ').join('').
@@ -193,29 +193,29 @@ function gb_Show_Function(PC) {
 var dump_asm_h = 40;
 function gb_Dump_ASM() {
     var s = '';
-    var oPC = PC;
+    var oPC = cpu.PC;
     var of = 0;
     var id = '';
     var st = '';
-    PC = Math.round(asmScroll.dragger.posY * (0xFFFF - dump_asm_h + 1));
-    if (PC <= 0) PC = 0;
+    cpu.PC = Math.round(asmScroll.dragger.posY * (0xFFFF - dump_asm_h + 1));
+    if (cpu.PC <= 0) cpu.PC = 0;
     for (var i = 0; i < dump_asm_h; i++) {
-        id = 'ASM_' + PC;
-        st = (gbBreakpointsList.indexOf(PC) >= 0) ? ' class="BK"' : '';
-        st += (oPC == PC) ? ' style="background:#9F9;"' : '';
+        id = 'ASM_' + cpu.PC;
+        st = (gbBreakpointsList.indexOf(cpu.PC) >= 0) ? ' class="BK"' : '';
+        st += (oPC == cpu.PC) ? ' style="background:#9F9;"' : '';
         s += '<div id="' + id + '"' + st + '>';
-        s += '<span onclick="gb_Show_Function(' + PC + ');" class="CP U CB80">fn</span> ';
-        s += '<span onclick="gb_Set_Breakpoint(' + PC + ');" class="CP C800">';
-        s += zf(hex(PC), 4) + ': ';
-        s += zf(hex(MEMR(PC)), 2) + ' = ';
-        s += MN[MEMR(PC)]();
+        s += '<span onclick="gb_Show_Function(' + cpu.PC + ');" class="CP U CB80">fn</span> ';
+        s += '<span onclick="gb_Set_Breakpoint(' + cpu.PC + ');" class="CP C800">';
+        s += zf(hex(cpu.PC), 4) + ': ';
+        s += zf(hex(MEMR(cpu.PC)), 2) + ' = ';
+        s += cpu.MN[MEMR(cpu.PC)]();
         s += '</span></div>\n';
-        PC++;
+        cpu.PC++;
     }
     //else s+='<div>&nbsp;</div>\n';
     $('ASMDUMP').innerHTML = s;
 
-    PC = oPC;
+    cpu.PC = oPC;
 }
 
 // BACKGROUND //
