@@ -17,52 +17,52 @@
 var gbInterrupts = [];
 
 function gb_Int_VBlank() { // IF/IE bit 0
-    cpu.gbIME = cpu.gbHalt = false;
+    cpu.gbIME = cpu.halt = false;
     MEMW(_IF_, gbRegIF & 0xFE); // reset IF bit 0
     MEMW(--cpu.SP, cpu.PC >> 8);
     MEMW(--cpu.SP, cpu.PC & 0xFF);
     cpu.PC = 0x0040;
-    cpu.gbCPUTicks += 32;
+    cpu.cpuTicks += 32;
 }
 
 function gb_Int_STAT() { // IF/IE bit 1
-    cpu.gbIME = cpu.gbHalt = false;
+    cpu.gbIME = cpu.halt = false;
     MEMW(_IF_, gbRegIF & 0xFD); // reset IF bit 1
     MEMW(--cpu.SP, cpu.PC >> 8);
     MEMW(--cpu.SP, cpu.PC & 0xFF);
     cpu.PC = 0x0048;
-    cpu.gbCPUTicks += 32;
+    cpu.cpuTicks += 32;
 }
 
 function gb_Int_Timer() { // IF/IE bit 2
-    cpu.gbIME = cpu.gbHalt = false;
+    cpu.gbIME = cpu.halt = false;
     MEMW(_IF_, gbRegIF & 0xFB); // reset IF bit 2
     MEMW(--cpu.SP, cpu.PC >> 8);
     MEMW(--cpu.SP, cpu.PC & 0xFF);
     cpu.PC = 0x0050;
-    cpu.gbCPUTicks += 32;
+    cpu.cpuTicks += 32;
 }
 
 function gb_Int_Serial() { // IF/IE bit 3
-    cpu.gbIME = cpu.gbHalt = false;
+    cpu.gbIME = cpu.halt = false;
     MEMW(_IF_, gbRegIF & 0xF7); // reset IF bit 3
     MEMW(--cpu.SP, cpu.PC >> 8);
     MEMW(--cpu.SP, cpu.PC & 0xFF);
     cpu.PC = 0x0058;
-    cpu.gbCPUTicks += 32;
+    cpu.cpuTicks += 32;
 }
 
 function gb_Int_Buttons() { // IF/IE bit 4
-    cpu.gbIME = cpu.gbHalt = false;
+    cpu.gbIME = cpu.halt = false;
     MEMW(_IF_, gbRegIF & 0xEF); // reset IF bit 4
     MEMW(--cpu.SP, cpu.PC >> 8);
     MEMW(--cpu.SP, cpu.PC & 0xFF);
     cpu.PC = 0x0060;
-    cpu.gbCPUTicks += 32;
+    cpu.cpuTicks += 32;
 }
 
 function gb_Init_Interrupts() {
-    cpu.gbIME = cpu.gbHalt = false;
+    cpu.gbIME = cpu.halt = false;
     for (var i = 0; i < 32; i++) {
         if (i & 1) gbInterrupts[i] = gb_Int_VBlank; else
             if (i & 2) gbInterrupts[i] = gb_Int_STAT; else

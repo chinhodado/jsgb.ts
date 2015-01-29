@@ -75,7 +75,7 @@ function gb_Dump_IORegs() {
       '<hr>' +
       'Emulator vars' + br +
       'IME: ' + cpu.gbIME + br +
-      'CPU Ticks: ' + cpu.gbCPUTicks + br +
+      'CPU Ticks: ' + cpu.cpuTicks + br +
       'DIV Ticks: ' + gbDIVTicks + br +
       'LCD Ticks: ' + gbLCDTicks + br +
       'Timer Ticks: ' + gbTimerTicks + br +
@@ -313,7 +313,7 @@ var gbDebuggerControls =
 <tbody><tr><td colspan="2">\
 <input class="BTN" type="button" onclick="gb_Clear_All_Breakpoints();" value="Clear all breakpoints"/>\
 <input class="BTN" type="button" onclick="gb_GoTo_ASM(prompt(\'Enter address (in hex)\'));" value="Goto..."/>\
-<input class="BTN" type="button" onclick="alert(gb_Dump_Caller_Stack());" value="Caller stack..."/>\
+<input class="BTN" type="button" onclick="alert(dumpCallerStack());" value="Caller stack..."/>\
 </td></tr>\
 <tr>\
 <td id="ASMDUMP">data</td>\

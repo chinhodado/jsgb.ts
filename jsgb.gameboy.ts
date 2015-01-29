@@ -50,8 +50,8 @@ window.onload = function () {
 
 function gb_Frame() {
     gbEndFrame = false;
-    while (!(gbEndFrame || cpu.gbPause)) {
-        if (!cpu.gbHalt) cpu.OP[MEMR(cpu.PC++)](); else cpu.gbCPUTicks = 4;
+    while (!(gbEndFrame || cpu.pause)) {
+        if (!cpu.halt) cpu.OP[MEMR(cpu.PC++)](); else cpu.cpuTicks = 4;
         if (cpu.gbIME) gbInterrupts[gbRegIE & gbRegIF]();
         gb_TIMER_Control();
         if (gbIsBreakpoint) if (gbBreakpointsList.indexOf(cpu.PC) >= 0) {
@@ -62,15 +62,15 @@ function gb_Frame() {
 }
 
 function gb_Step() {
-    if (!cpu.gbHalt) cpu.OP[MEMR(cpu.PC++)](); else cpu.gbCPUTicks = 4;
+    if (!cpu.halt) cpu.OP[MEMR(cpu.PC++)](); else cpu.cpuTicks = 4;
     if (cpu.gbIME) gbInterrupts[gbRegIE & gbRegIF]();
     gb_TIMER_Control();
     gb_Dump_All();
 }
 
 function gb_Run() {
-    if (!cpu.gbPause) return;
-    cpu.gbPause = false;
+    if (!cpu.pause) return;
+    cpu.pause = false;
     $('BR').disabled = true;
     $('BP').disabled = false;
     $('BS').disabled = true;
@@ -79,8 +79,8 @@ function gb_Run() {
 }
 
 function gb_Pause() {
-    if (cpu.gbPause) return;
-    cpu.gbPause = true;
+    if (cpu.pause) return;
+    cpu.pause = true;
     $('BR').disabled = false;
     $('BP').disabled = true;
     $('BS').disabled = false;

@@ -18,7 +18,7 @@
  */
 
 class CPU {
-    gbEnableCallerStack = false;
+    enableCallerStack = false;
 
     // CPU Registers
     RA = 0; // Accumulator
@@ -36,12 +36,12 @@ class CPU {
     T1 = 0; // Temp Register 1
     T2 = 0; // Temp Register 2
 
-    gbHalt = false;
-    gbPause = true;
+    halt = false;
+    pause = true;
     gbIME = true;
-    gbCPUTicks = 0;
-    gbDAATable: number[] = [];
-    gbCallerStack = [];
+    cpuTicks = 0;
+    daaTable: number[] = [];
+    callerStack = [];
 
     // OpCode Arrays
     OP = []; OPCB = []; // Opcode Array
@@ -60,324 +60,334 @@ class CPU {
         this.initializeMNCB();
     }
 
-    gb_Save_Caller(): void {
-        if (this.gbEnableCallerStack) {
-            this.gbCallerStack.unshift(this.PC - 1);
-            if (this.gbCallerStack.length > 8) this.gbCallerStack.pop();
+    saveCaller(): void {
+        if (this.enableCallerStack) {
+            this.callerStack.unshift(this.PC - 1);
+            if (this.callerStack.length > 8) this.callerStack.pop();
         }
     }
 
-    gb_Dump_Caller_Stack(): string {
-        if (this.gbEnableCallerStack) {
+    dumpCallerStack(): string {
+        if (this.enableCallerStack) {
             var s = 'Caller Stack:\n';
-            for (var i in this.gbCallerStack) {
-                s += '0x' + hex4(this.gbCallerStack[i]) + '\n';
+            for (var i in this.callerStack) {
+                s += '0x' + hex4(this.callerStack[i]) + '\n';
             }
             return s;
         } else {
             return 'Caller stack disabled.\n' +
-                'To enable set gbEnableCallerStack=true in jsgb.cpu.ts';
+                'To enable set enableCallerStack = true in cpu.ts';
         }
     }
 
-    gb_CPU_UNK() {
+    UNK() {
         gb_Pause();
+        var stack = this.dumpCallerStack();
         alert(
             'Unknown opcode: ' +
             'PC = ' + hex(this.PC) + ' - ' +
             'OP = 0x' + hex(MEMR(this.PC)) + '\n\n' +
-            this.gb_Dump_Caller_Stack()
+            stack
             );
     }
-    gb_CPU_RL(n: number): number {
+    RL(n: number): number {
         this.T1 = this.FC;
         this.FC = (n >> 7) & 1;
         n = ((n << 1) & 0xFF) | this.T1;
         this.FN = this.FH = 0;
         this.FZ = (n == 0) ? 1 : 0;
-        this.gbCPUTicks = 8;
+        this.cpuTicks = 8;
         return n;
     }
-    gb_CPU_RLC(n: number): number {
+    RLC(n: number): number {
         this.FC = (n >> 7) & 1;
         n = ((n << 1) & 0xFF) | this.FC;
         this.FN = this.FH = 0;
         this.FZ = (n == 0) ? 1 : 0;
-        this.gbCPUTicks = 8;
+        this.cpuTicks = 8;
         return n;
     }
-    gb_CPU_RR(n: number): number {
+    RR(n: number): number {
         this.T1 = this.FC;
         this.FC = n & 1;
         n = (n >> 1) | (this.T1 << 7);
         this.FN = this.FH = 0;
         this.FZ = (n == 0) ? 1 : 0;
-        this.gbCPUTicks = 8;
+        this.cpuTicks = 8;
         return n;
     }
-    gb_CPU_RRC(n: number): number {
+    RRC(n: number): number {
         this.FC = n & 1;
         n = (n >> 1) | (this.FC << 7);
         this.FN = this.FH = 0;
         this.FZ = (n == 0) ? 1 : 0;
-        this.gbCPUTicks = 8;
+        this.cpuTicks = 8;
         return n;
     }
-    gb_CPU_SWAP(R: string) {
+    SWAP(R: string) {
         if (R == 'H') {
             this.HL = ((this.HL & 0x0F00) << 4) | ((this.HL & 0xF000) >> 4) | (this.HL & 0x00FF);
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         } else if (R == 'L') {
             this.HL = ((this.HL & 0x000F) << 4) | ((this.HL & 0x00F0) >> 4) | (this.HL & 0xFF00);
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         } else if (R == '(HL)') {
             this.T1 = MEMR(this.HL);
             MEMW(this.HL,((this.T1 << 4) | (this.T1 >> 4)) & 0xFF);
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         } else {
             this[R] = ((this[R] << 4) | (this[R] >> 4)) & 0xFF;
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }
     }
-    gb_CPU_ADD_A(R: string, C: number): void {
+    ADD_A(R: string, C: number): void {
         this.FH = ((this.RA & 0x0F) + (this[R] & 0x0F)) > 0x0F ? 1 : 0;
         this.FC = ((this.RA & 0xFF) + (this[R] & 0xFF)) > 0xFF ? 1 : 0;
         this.RA = (this.RA + this[R]) & 0xFF;
         this.FZ = (this.RA == 0) ? 1 : 0;
         this.FN = 0;
-        this.gbCPUTicks = C;
+        this.cpuTicks = C;
     }
-    gb_CPU_ADC_A(R: string, C: number): void {
+    ADC_A(R: string, C: number): void {
         this.T2 = this.FC;
         this.FH = ((this.RA & 0x0F) + (this[R] & 0x0F) + this.T2) > 0x0F ? 1 : 0;
         this.FC = ((this.RA & 0xFF) + (this[R] & 0xFF) + this.T2) > 0xFF ? 1 : 0;
         this.RA = (this.RA + this[R] + this.T2) & 0xFF;
         this.FZ = (this.RA == 0) ? 1 : 0;
         this.FN = 0;
-        this.gbCPUTicks = C;
+        this.cpuTicks = C;
     }
-    gb_CPU_SUB_A(R: string, C: number): void { //!!!
+    SUB_A(R: string, C: number): void { //!!!
         if (R == 'RA') {
             this.FH = 0;
             this.FC = 0;
             this.RA = 0;
             this.FZ = 1;
             this.FN = 1;
-            this.gbCPUTicks = C;
+            this.cpuTicks = C;
         } else {
             this.FH = (this.RA & 0x0F) < (this[R] & 0x0F) ? 1 : 0;
             this.FC = (this.RA & 0xFF) < (this[R] & 0xFF) ? 1 : 0;
             this.RA = (this.RA - this[R]) & 0xFF;
             this.FZ = (this.RA == 0) ? 1 : 0;
             this.FN = 1;
-            this.gbCPUTicks = C;
+            this.cpuTicks = C;
         }
     }
-    gb_CPU_SBC_A(R: string, C: number): void {
+    SBC_A(R: string, C: number): void {
         this.T2 = this.FC;
         this.FH = ((this.RA & 0x0F) < ((this[R] & 0x0F) + this.T2)) ? 1 : 0;
         this.FC = ((this.RA & 0xFF) < ((this[R] & 0xFF) + this.T2)) ? 1 : 0;
         this.RA = (this.RA - this[R] - this.T2) & 0xFF;
         this.FZ = (this.RA == 0) ? 1 : 0;
         this.FN = 1;
-        this.gbCPUTicks = C;
+        this.cpuTicks = C;
     }
-    gb_CPU_AND_A(R: number, C: number): void {
+    AND_A(R: number, C: number): void {
         this.RA &= R;
         this.FZ = (this.RA == 0) ? 1 : 0;
         this.FH = 1;
         this.FN = this.FC = 0;
-        this.gbCPUTicks = C;
+        this.cpuTicks = C;
     }
-    gb_CPU_OR_A(R: number, C: number): void {
+    OR_A(R: number, C: number): void {
         this.RA |= R;
         this.FZ = (this.RA == 0) ? 1 : 0;
         this.FN = this.FH = this.FC = 0;
-        this.gbCPUTicks = C;
+        this.cpuTicks = C;
     }
-    gb_CPU_XOR_A(R: number, C: number): void {
+    XOR_A(R: number, C: number): void {
         this.RA ^= R;
         this.FZ = (this.RA == 0) ? 1 : 0;
         this.FN = this.FH = this.FC = 0;
-        this.gbCPUTicks = C;
+        this.cpuTicks = C;
     }
-    gb_CPU_CP_A(R: string, C: number): void {
+    CP_A(R: string, C: number): void {
         this.FZ = (this.RA == this[R]) ? 1 : 0;
         this.FN = 1;
         this.FC = this.RA < this[R] ? 1 : 0;
         this.FH = (this.RA & 0x0F) < (this[R] & 0x0F) ? 1 : 0;
-        this.gbCPUTicks = C;
+        this.cpuTicks = C;
     }
-    gb_CPU_INC(R: string, C: number): void { //!!!
+    INC(R: string, C: number): void { //!!!
         this[R] = (++this[R]) & 0xFF;
         this.FZ = (this[R] == 0) ? 1 : 0;
         this.FN = 0;
         this.FH = (this[R] & 0xF) == 0 ? 1 : 0;
-        this.gbCPUTicks = C;
+        this.cpuTicks = C;
     }
-    gb_CPU_DEC(R: string, C: number): void {
+    DEC(R: string, C: number): void {
         this[R] = (--this[R]) & 0xFF;
         this.FZ = (this[R] == 0) ? 1 : 0;
         this.FN = 1;
         this.FH = (this[R] & 0xF) == 0xF ? 1 : 0;
-        this.gbCPUTicks = C; // TODO: chin - check if this is 4 or C (originally 4)
+        this.cpuTicks = C; // TODO: chin - check if this is 4 or C (originally 4)
     }
-    gb_CPU_ADD16(n1: number, n2: number): number {
+    ADD16(n1: number, n2: number): number {
         this.FN = 0;
         this.FH = ((n1 & 0xFFF) + (n2 & 0xFFF)) > 0xFFF ? 1 : 0; // TODO test bit 11. Not sure on this
         n1 += n2;
         this.FC = n1 > 0xFFFF ? 1 : 0;
         n1 &= 0xFFFF;
-        this.gbCPUTicks = 8;
+        this.cpuTicks = 8;
         return n1;
     }
-    gb_CPU_INC16(n: number): number {
-        this.gbCPUTicks = 8;
+    INC16(n: number): number {
+        this.cpuTicks = 8;
         return (n + 1) & 0xFFFF;
     }
-    gb_CPU_JR(c: boolean): void { // todo: chin - check this
+    JR(c: boolean): void { // todo: chin - check this
         if (c) {
             this.PC += sb(MEMR(this.PC)) + 1;
-            this.gbCPUTicks = 12;
+            this.cpuTicks = 12;
         } else {
             this.PC++;
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }
     }
-    gb_CPU_JP(c: boolean): void { // todo: chin - check this
+    JP(c: boolean): void { // todo: chin - check this
         if (c) {
             this.PC = (MEMR(this.PC + 1) << 8) | MEMR(this.PC);
-            this.gbCPUTicks = 12;
+            this.cpuTicks = 12;
         } else {
             this.PC += 2;
-            this.gbCPUTicks = 12;
+            this.cpuTicks = 12;
         }
     }
-    gb_CPU_CALL(c: boolean): void { // todo : chin - check this
-        if (this.gbEnableCallerStack) {
-            this.gb_Save_Caller();
+    CALL(c: boolean): void { // todo : chin - check this
+        if (this.enableCallerStack) {
+            this.saveCaller();
         }
         if (c) {
             this.PC += 2;
             MEMW(--this.SP, this.PC >> 8);
             MEMW(--this.SP, this.PC & 0xFF);
             this.PC = (MEMR(this.PC - 1) << 8) | MEMR(this.PC - 2);
-            this.gbCPUTicks = 12;
+            this.cpuTicks = 12;
         } else {
             this.PC += 2;
-            this.gbCPUTicks = 12;
+            this.cpuTicks = 12;
         }
     }
-    gb_CPU_RST(a: number): void {
+    RST(a: number): void {
         MEMW(--this.SP, this.PC >> 8);
         MEMW(--this.SP, this.PC & 0xFF);
         this.PC = a;
-        this.gbCPUTicks = 32;
+        this.cpuTicks = 32;
     }
-    gb_CPU_RET(c: boolean): void { //!!!
+    RET(c: boolean): void { //!!!
         if (c) {
             this.PC = (MEMR(this.SP + 1) << 8) | MEMR(this.SP);
             this.SP += 2;
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         } else {
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }
     }
-    gb_CPU_DDA(): void { //!!!
-        this.T1 = this.RA;
-        if (this.FC) this.T1 |= 256;
-        if (this.FH) this.T1 |= 512;
-        if (this.FN) this.T1 |= 1024;
-        this.T1 = this.gbDAATable[this.T1];
-        this.RA = this.T1 >> 8;
-        this.FZ = (this.T1 >> 7) & 1;
-        this.FN = (this.T1 >> 6) & 1;
-        this.FH = (this.T1 >> 5) & 1;
-        this.FC = (this.T1 >> 4) & 1;
-        this.gbCPUTicks = 4;
+    DAA(): void {
+        if (!this.FN) {
+            if (this.FC || this.RA > 0x99) {
+                this.RA = (this.RA + 0x60) & 0xFF;
+                this.FC = 1;
+            }
+            if (this.FH || (this.RA & 0xF) > 0x9) {
+                this.RA = (this.RA + 0x06) & 0xFF;
+                this.FH = 0;
+            }
+        }
+        else if (this.FC && this.FH) {
+            this.RA = (this.RA + 0x9A) & 0xFF;
+            this.FH = 0;
+        }
+        else if (this.FC) {
+            this.RA = (this.RA + 0xA0) & 0xFF;
+        }
+        else if (this.FH) {
+            this.RA = (this.RA + 0xFA) & 0xFF;
+            this.FH = 0;
+        }
+        this.FZ = (this.RA == 0) ? 1 : 0;;
     }
-    gb_CPU_RLA(): void { //!!!
+    RLA(): void { //!!!
         this.T1 = this.FC;
         this.FC = (this.RA >> 7) & 1;
         this.RA = ((this.RA << 1) & 0xFF) | this.T1;
         this.FN = this.FH = 0;
         this.FZ = (this.RA == 0) ? 1 : 0; // TODO not sure. on z80 Z is not affected
-        this.gbCPUTicks = 4;
+        this.cpuTicks = 4;
     }
-    gb_CPU_HALT(): void {
-        if (this.gbIME) this.gbHalt = true;
+    HALT(): void {
+        if (this.gbIME) this.halt = true;
         else {
             gb_Pause();
             alert('HALT instruction with interrupts disabled.');
         }
-        this.gbCPUTicks = 4;
+        this.cpuTicks = 4;
     }
-    gb_LD_MEM_R16(R: string, C: number): void {
+    LD_MEM_R16(R: string, C: number): void {
         this.T1 = (MEMR(this.PC + 1) << 8) + MEMR(this.PC);
         MEMW(this.T1++, this[R] & 0xFF);
         MEMW(this.T1, this[R] >> 8);
         this.PC += 2;
-        this.gbCPUTicks = C;
+        this.cpuTicks = C;
     }
-    gb_CPU_SLA_R(R: string, C: number): void {
+    SLA_R(R: string, C: number): void {
         this.FC = (this[R] >> 7) & 1;
         this[R] = (this[R] << 1) & 0xFF;
         this.FN = this.FH = 0;
         this.FZ = (this[R] == 0) ? 1 : 0;
-        this.gbCPUTicks = C;
+        this.cpuTicks = C;
     }
-    gb_CPU_NOP(): void {
-        this.gbCPUTicks = 0;
+    NOP(): void {
+        this.cpuTicks = 0;
     }
 
     initializeOP() {
-        this.OP[0x00] = this.gb_CPU_NOP; // NOP
+        this.OP[0x00] = () => this.NOP(); // NOP
         this.OP[0x01] = () => {
             this.RC = MEMR(this.PC++);
             this.RB = MEMR(this.PC++);
-            this.gbCPUTicks = 12;
+            this.cpuTicks = 12;
         }; // LD BC,u16
         this.OP[0x02] = () => {
             MEMW((this.RB << 8) | this.RC, this.RA);
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // LD (BC),A
         this.OP[0x03] = () => {
-            this.T1 = this.gb_CPU_INC16((this.RB << 8) | this.RC);
+            this.T1 = this.INC16((this.RB << 8) | this.RC);
             this.RB = this.T1 >> 8;
             this.RC = this.T1 & 0xFF;
         }; // INC BC
-        this.OP[0x04] = () => { this.gb_CPU_INC('RB', 4); }; // INC B
-        this.OP[0x05] = () => { this.gb_CPU_DEC('RB', 4); }; // DEC B
+        this.OP[0x04] = () => this.INC('RB', 4); // INC B
+        this.OP[0x05] = () => this.DEC('RB', 4); // DEC B
         this.OP[0x06] = () => {
             this.RB = MEMR(this.PC++);
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // LD B,u8
         this.OP[0x07] = () => {
             this.FC = (this.RA >> 7) & 1;
             this.RA = ((this.RA << 1) & 0xFF) | this.FC;
             this.FN = this.FH = 0;
             this.FZ = this.RA == 0 ? 1 : 0;
-            this.gbCPUTicks = 4;
+            this.cpuTicks = 4;
         }; // RLCA
-        this.OP[0x08] = () => { this.gb_LD_MEM_R16('HL', 20); }; // LD (u16),SP
-        this.OP[0x09] = () => {
-            this.HL = this.gb_CPU_ADD16(this.HL,(this.RB << 8) | this.RC);
-        }; // ADD HL,BC
+        this.OP[0x08] = () => this.LD_MEM_R16('HL', 20); // LD (u16),SP
+        this.OP[0x09] = () => this.HL = this.ADD16(this.HL,(this.RB << 8) | this.RC); // ADD HL,BC
         this.OP[0x0A] = () => {
             this.RA = MEMR(((this.RB & 0x00FF) << 8) | this.RC);
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // LD A,(BC)
         this.OP[0x0B] = () => {
             var BC = ((this.RB << 8) + this.RC - 1) & 0xFFFF;
             this.RB = BC >> 8;
             this.RC = BC & 0xFF;
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // DEC BC
-        this.OP[0x0C] = () => { this.gb_CPU_INC('RC', 4); }; // INC C
-        this.OP[0x0D] = () => { this.gb_CPU_DEC('RC', 4); }; // DEC C
+        this.OP[0x0C] = () => this.INC('RC', 4); // INC C
+        this.OP[0x0D] = () => this.DEC('RC', 4); // DEC C
         this.OP[0x0E] = () => {
             this.RC = MEMR(this.PC++);
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // LD C,u8;
         this.OP[0x0F] = () => {
             this.FC = this.RA & 1;
@@ -385,51 +395,51 @@ class CPU {
             this.FN = 0;
             this.FH = 0;
             this.FZ = this.RA == 0 ? 1 : 0;
-            this.gbCPUTicks = 4;
+            this.cpuTicks = 4;
         }; // RRCA
         this.OP[0x10] = () => {
             gb_Pause();
-            alert('STOP instruction\n' + this.gb_Dump_Caller_Stack());
-            this.gbCPUTicks = 4;
+            alert('STOP instruction\n' + this.dumpCallerStack());
+            this.cpuTicks = 4;
         }; // STOP
         this.OP[0x11] = () => {
             this.RE = MEMR(this.PC++);
             this.RD = MEMR(this.PC++);
-            this.gbCPUTicks = 12;
+            this.cpuTicks = 12;
         }; // LD DE,u16
         this.OP[0x12] = () => {
             MEMW((this.RD << 8) | this.RE, this.RA);
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // LD (DE),A
         this.OP[0x13] = () => {
-            this.T1 = this.gb_CPU_INC16((this.RD << 8) | this.RE);
+            this.T1 = this.INC16((this.RD << 8) | this.RE);
             this.RD = this.T1 >> 8;
             this.RE = this.T1 & 0xFF;
         }; // INC DE
-        this.OP[0x14] = () => { this.gb_CPU_INC('RD', 4); }; // INC D
-        this.OP[0x15] = () => { this.gb_CPU_DEC('RD', 4); }; // DEC D
+        this.OP[0x14] = () => this.INC('RD', 4); // INC D
+        this.OP[0x15] = () => this.DEC('RD', 4); // DEC D
         this.OP[0x16] = () => {
             this.RD = MEMR(this.PC++);
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // LD D,u8
-        this.OP[0x17] = () => { this.gb_CPU_RLA(); }; // RLA
-        this.OP[0x18] = () => { this.gb_CPU_JR(true); }; // JR s8
-        this.OP[0x19] = () => { this.HL = this.gb_CPU_ADD16(this.HL,(this.RD << 8) | this.RE); }; // ADD HL,DE
+        this.OP[0x17] = () => this.RLA(); // RLA
+        this.OP[0x18] = () => this.JR(true); // JR s8
+        this.OP[0x19] = () => this.HL = this.ADD16(this.HL,(this.RD << 8) | this.RE); // ADD HL,DE
         this.OP[0x1A] = () => {
             this.RA = MEMR(((this.RD & 0x00FF) << 8) | this.RE);
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // LD A,(DE)
         this.OP[0x1B] = () => {
             var DE = ((this.RD << 8) + this.RE - 1) & 0xFFFF;
             this.RD = DE >> 8;
             this.RE = DE & 0xFF;
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // DEC DE
-        this.OP[0x1C] = () => { this.gb_CPU_INC('RE', 4); }; // INC E
-        this.OP[0x1D] = () => { this.gb_CPU_DEC('RE', 4); }; // DEC E
+        this.OP[0x1C] = () => this.INC('RE', 4); // INC E
+        this.OP[0x1D] = () => this.DEC('RE', 4); // DEC E
         this.OP[0x1E] = () => {
             this.RE = MEMR(this.PC++);
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // LD E,u8;
         this.OP[0x1F] = () => {
             this.T1 = this.FC;
@@ -438,305 +448,305 @@ class CPU {
             this.FN = 0;
             this.FH = 0;
             this.FZ = this.RA == 0 ? 1 : 0;
-            this.gbCPUTicks = 4;
+            this.cpuTicks = 4;
         }; // RRA
-        this.OP[0x20] = () => { this.gb_CPU_JR(!this.FZ); }; // JR NZ,s8
+        this.OP[0x20] = () => this.JR(!this.FZ); // JR NZ,s8
         this.OP[0x21] = () => {
             this.HL = (MEMR(this.PC + 1) << 8) | MEMR(this.PC);
             this.PC += 2;
-            this.gbCPUTicks = 12;
+            this.cpuTicks = 12;
         }; // LD HL,u16;
         this.OP[0x22] = () => {
             MEMW(this.HL, this.RA);
             this.HL = (++this.HL) & 0xFFFF;
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // LDI (HL),A
-        this.OP[0x23] = () => { this.HL = this.gb_CPU_INC16(this.HL); }; // INC HL
+        this.OP[0x23] = () => this.HL = this.INC16(this.HL); // INC HL
         this.OP[0x24] = () => {
             this.T1 = this.HL >> 8;
-            this.gb_CPU_INC('T1', 4);
+            this.INC('T1', 4);
             this.HL = (this.HL & 0x00FF) | (this.T1 << 8);
         }; // INC H
         this.OP[0x25] = () => {
             this.T1 = this.HL >> 8;
-            this.gb_CPU_DEC('T1', 4);
+            this.DEC('T1', 4);
             this.HL = (this.HL & 0x00FF) | (this.T1 << 8);
         }; // DEC H
         this.OP[0x26] = () => {
             this.HL &= 0x00FF; this.HL |= MEMR(this.PC++) << 8;
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // LD H,u8
-        this.OP[0x27] = () => { this.gb_CPU_DDA(); }; // DAA
-        this.OP[0x28] = () => { this.gb_CPU_JR(this.FZ != 0); }; // JR Z,s8
-        this.OP[0x29] = () => { this.HL = this.gb_CPU_ADD16(this.HL, this.HL); }; // ADD HL,HL
+        this.OP[0x27] = () => this.DAA(); // DAA
+        this.OP[0x28] = () => this.JR(this.FZ != 0); // JR Z,s8
+        this.OP[0x29] = () => this.HL = this.ADD16(this.HL, this.HL); // ADD HL,HL
         this.OP[0x2A] = () => {
             this.RA = MEMR(this.HL);
             this.HL = (this.HL + 1) & 0xFFFF;
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // LDI A,(HL)
-        this.OP[0x2B] = () => { this.HL = (this.HL - 1) & 0xFFFF; this.gbCPUTicks = 8; }; // DEC HL
+        this.OP[0x2B] = () => { this.HL = (this.HL - 1) & 0xFFFF; this.cpuTicks = 8; }; // DEC HL
         this.OP[0x2C] = () => {
             this.T1 = this.HL & 0xFF;
-            this.gb_CPU_INC('T1', 4);
+            this.INC('T1', 4);
             this.HL = (this.HL & 0xFF00) | this.T1;
         }; // INC L
         this.OP[0x2D] = () => {
             this.T1 = this.HL & 0xFF;
-            this.gb_CPU_DEC('T1', 4);
+            this.DEC('T1', 4);
             this.HL = (this.HL & 0xFF00) | this.T1;
         }; // DEC L
-        this.OP[0x2E] = () => { this.HL &= 0xFF00; this.HL |= MEMR(this.PC++); this.gbCPUTicks = 8; }; // LD L,u8
-        this.OP[0x2F] = () => { this.RA ^= 0xFF; this.FN = 1; this.FH = 1; this.gbCPUTicks = 4; }; // CPL
-        this.OP[0x30] = () => { this.gb_CPU_JR(!this.FC); }; // JR NC,s8
+        this.OP[0x2E] = () => { this.HL &= 0xFF00; this.HL |= MEMR(this.PC++); this.cpuTicks = 8; }; // LD L,u8
+        this.OP[0x2F] = () => { this.RA ^= 0xFF; this.FN = 1; this.FH = 1; this.cpuTicks = 4; }; // CPL
+        this.OP[0x30] = () => this.JR(!this.FC); // JR NC,s8
         this.OP[0x31] = () => {
             this.SP = (MEMR(this.PC + 1) << 8) | MEMR(this.PC);
             this.PC += 2;
-            this.gbCPUTicks = 12;
+            this.cpuTicks = 12;
         }; // LD SP,u16
         this.OP[0x32] = () => {
             MEMW(this.HL, this.RA);
             this.HL = (this.HL - 1) & 0xFFFF;
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // LDD (HL),A
-        this.OP[0x33] = () => { this.SP = this.gb_CPU_INC16(this.SP); }; // INC SP
+        this.OP[0x33] = () => this.SP = this.INC16(this.SP); // INC SP
         this.OP[0x34] = () => {
             this.T1 = MEMR(this.HL);
-            this.gb_CPU_INC('T1', 12);
+            this.INC('T1', 12);
             MEMW(this.HL, this.T1);
         }; // INC (HL)
         this.OP[0x35] = () => {
             this.T1 = MEMR(this.HL);
-            this.gb_CPU_DEC('T1', 12);
+            this.DEC('T1', 12);
             MEMW(this.HL, this.T1);
         }; // DEC (HL)
-        this.OP[0x36] = () => { MEMW(this.HL, MEMR(this.PC++)); this.gbCPUTicks = 12; }; // LD (HL),u8;
-        this.OP[0x37] = () => { this.FC = 1; this.FN = 0; this.FH = 0; this.gbCPUTicks = 4; }; // SCF
-        this.OP[0x38] = () => { this.gb_CPU_JR(this.FC != 0); }; // JR C,s8
-        this.OP[0x39] = () => { this.HL = this.gb_CPU_ADD16(this.HL, this.SP); }; // ADD HL,SP
+        this.OP[0x36] = () => { MEMW(this.HL, MEMR(this.PC++)); this.cpuTicks = 12; }; // LD (HL),u8;
+        this.OP[0x37] = () => { this.FC = 1; this.FN = 0; this.FH = 0; this.cpuTicks = 4; }; // SCF
+        this.OP[0x38] = () => this.JR(this.FC != 0); // JR C,s8
+        this.OP[0x39] = () => this.HL = this.ADD16(this.HL, this.SP); // ADD HL,SP
         this.OP[0x3A] = () => {
             this.RA = MEMR(this.HL);
             this.HL = (this.HL - 1) & 0xFFFF;
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // LDD A,(HL)
-        this.OP[0x3B] = () => { this.SP = (this.SP - 1) & 0xFFFF; this.gbCPUTicks = 8; }; // DEC SP
-        this.OP[0x3C] = () => { this.gb_CPU_INC('RA', 4); }; // INC A
-        this.OP[0x3D] = () => { this.gb_CPU_DEC('RA', 4); }; // DEC A
-        this.OP[0x3E] = () => { this.RA = MEMR(this.PC++); this.gbCPUTicks = 8; }; // LD A,u8;
-        this.OP[0x3F] = () => { this.FC = (~this.FC) & 1; this.FN = this.FH = 0; this.gbCPUTicks = 4; }; // CCF
-        this.OP[0x40] = this.gb_CPU_NOP; // LD B,B
-        this.OP[0x41] = () => { this.RB = this.RC; this.gbCPUTicks = 4; }; // LD B,C
-        this.OP[0x42] = () => { this.RB = this.RD; this.gbCPUTicks = 4; }; // LD B,D
-        this.OP[0x43] = () => { this.RB = this.RE; this.gbCPUTicks = 4; }; // LD B,E
-        this.OP[0x44] = () => { this.RB = this.HL >> 8; this.gbCPUTicks = 4; }; // LD B,H
-        this.OP[0x45] = () => { this.RB = this.HL & 0xFF; this.gbCPUTicks = 4; }; // LD B,L
-        this.OP[0x46] = () => { this.RB = MEMR(this.HL); this.gbCPUTicks = 8; }; // LD B,(HL)
-        this.OP[0x47] = () => { this.RB = this.RA; this.gbCPUTicks = 4; }; // LD B,A
-        this.OP[0x48] = () => { this.RC = this.RB; this.gbCPUTicks = 4; }; // LD C,B
-        this.OP[0x49] = this.gb_CPU_NOP; // LD C,C
-        this.OP[0x4A] = () => { this.RC = this.RD; this.gbCPUTicks = 4; }; // LD C,D
-        this.OP[0x4B] = () => { this.RC = this.RE; this.gbCPUTicks = 4; }; // LD C,E
-        this.OP[0x4C] = () => { this.RC = this.HL >> 8; this.gbCPUTicks = 4; }; // LD C,H
-        this.OP[0x4D] = () => { this.RC = this.HL & 0xFF; this.gbCPUTicks = 4; }; // LD C,L
-        this.OP[0x4E] = () => { this.RC = MEMR(this.HL); this.gbCPUTicks = 8; }; // LD C,(HL)
-        this.OP[0x4F] = () => { this.RC = this.RA; this.gbCPUTicks = 4; }; // LD C,A
-        this.OP[0x50] = () => { this.RD = this.RB; this.gbCPUTicks = 4; }; // LD D,B
-        this.OP[0x51] = () => { this.RD = this.RC; this.gbCPUTicks = 4; }; // LD D,C
-        this.OP[0x52] = this.gb_CPU_NOP; // LD D,D
-        this.OP[0x53] = () => { this.RD = this.RE; this.gbCPUTicks = 4; }; // LD D,E
-        this.OP[0x54] = () => { this.RD = this.HL >> 8; this.gbCPUTicks = 4; }; // LD D,H
-        this.OP[0x55] = () => { this.RD = this.HL & 0xFF; this.gbCPUTicks = 4; }; // LD D,L
-        this.OP[0x56] = () => { this.RD = MEMR(this.HL); this.gbCPUTicks = 8; }; // LD D,(HL)
-        this.OP[0x57] = () => { this.RD = this.RA; this.gbCPUTicks = 4; }; // LD D,A
-        this.OP[0x58] = () => { this.RE = this.RB; this.gbCPUTicks = 4; }; // LD E,B
-        this.OP[0x59] = () => { this.RE = this.RC; this.gbCPUTicks = 4; }; // LD E,C
-        this.OP[0x5A] = () => { this.RE = this.RD; this.gbCPUTicks = 4; }; // LD E,D
-        this.OP[0x5B] = this.gb_CPU_NOP; // LD E,E
-        this.OP[0x5C] = () => { this.RE = this.HL >> 8; this.gbCPUTicks = 4; }; // LD E,H
-        this.OP[0x5D] = () => { this.RE = this.HL & 0xFF; this.gbCPUTicks = 4; }; // LD E,L
-        this.OP[0x5E] = () => { this.RE = MEMR(this.HL); this.gbCPUTicks = 8; }; // LD E,(HL)
-        this.OP[0x5F] = () => { this.RE = this.RA; this.gbCPUTicks = 4; }; // LD E,A
-        this.OP[0x60] = () => { this.HL = (this.HL & 0x00FF) | (this.RB << 8); this.gbCPUTicks = 4; }; // LD H,B
-        this.OP[0x61] = () => { this.HL = (this.HL & 0x00FF) | (this.RC << 8); this.gbCPUTicks = 4; }; // LD H,C
-        this.OP[0x62] = () => { this.HL = (this.HL & 0x00FF) | (this.RD << 8); this.gbCPUTicks = 4; }; // LD H,D
-        this.OP[0x63] = () => { this.HL = (this.HL & 0x00FF) | (this.RE << 8); this.gbCPUTicks = 4; }; // LD H,E
-        this.OP[0x64] = this.gb_CPU_NOP; // LD H,H
-        this.OP[0x65] = () => { this.HL = (this.HL & 0x00FF) | ((this.HL & 0xFF) << 8); this.gbCPUTicks = 4; }; // LD H,L
-        this.OP[0x66] = () => { this.HL = (this.HL & 0x00FF) | (MEMR(this.HL) << 8); this.gbCPUTicks = 8; }; // LD H,(HL)
-        this.OP[0x67] = () => { this.HL = (this.RA << 8) | (this.HL & 0xFF); this.gbCPUTicks = 4; }; // LD H,A
-        this.OP[0x68] = () => { this.HL = (this.HL & 0xFF00) | this.RB; this.gbCPUTicks = 4; }; // LD L,B
-        this.OP[0x69] = () => { this.HL = (this.HL & 0xFF00) | this.RC; this.gbCPUTicks = 4; }; // LD L,C
-        this.OP[0x6A] = () => { this.HL = (this.HL & 0xFF00) | this.RD; this.gbCPUTicks = 4; }; // LD L,D
-        this.OP[0x6B] = () => { this.HL = (this.HL & 0xFF00) | this.RE; this.gbCPUTicks = 4; }; // LD L,E
-        this.OP[0x6C] = () => { this.HL = (this.HL & 0xFF00) | (this.HL >> 8); this.gbCPUTicks = 4; }; // LD L,H
-        this.OP[0x6D] = this.gb_CPU_NOP; // LD L,L
-        this.OP[0x6E] = () => { this.HL = (this.HL & 0xFF00) | (MEMR(this.HL)); this.gbCPUTicks = 8; }; // LD L,(HL)
-        this.OP[0x6F] = () => { this.HL = this.RA | (this.HL & 0xFF00); this.gbCPUTicks = 4; }; // LD L,A
-        this.OP[0x70] = () => { MEMW(this.HL, this.RB); this.gbCPUTicks = 8; }; // LD (HL),B
-        this.OP[0x71] = () => { MEMW(this.HL, this.RC); this.gbCPUTicks = 8; }; // LD (HL),C
-        this.OP[0x72] = () => { MEMW(this.HL, this.RD); this.gbCPUTicks = 8; }; // LD (HL),D
-        this.OP[0x73] = () => { MEMW(this.HL, this.RE); this.gbCPUTicks = 8; }; // LD (HL),E
-        this.OP[0x74] = () => { MEMW(this.HL, this.HL >> 8); this.gbCPUTicks = 8; }; // LD (HL),H
-        this.OP[0x75] = () => { MEMW(this.HL, this.HL & 0x00FF); this.gbCPUTicks = 8; }; // LD (HL),L
-        this.OP[0x76] = () => { this.gb_CPU_HALT(); }; // HALT
-        this.OP[0x77] = () => { MEMW(this.HL, this.RA); this.gbCPUTicks = 8; }; // LD (HL),A
-        this.OP[0x78] = () => { this.RA = this.RB; this.gbCPUTicks = 4; }; // LD A,B
-        this.OP[0x79] = () => { this.RA = this.RC; this.gbCPUTicks = 4; }; // LD A,C
-        this.OP[0x7A] = () => { this.RA = this.RD; this.gbCPUTicks = 4; }; // LD A,D
-        this.OP[0x7B] = () => { this.RA = this.RE; this.gbCPUTicks = 4; }; // LD A,E
-        this.OP[0x7C] = () => { this.RA = this.HL >> 8; this.gbCPUTicks = 4; }; // LD A,H
-        this.OP[0x7D] = () => { this.RA = this.HL & 0xFF; this.gbCPUTicks = 4; }; // LD A,L
-        this.OP[0x7E] = () => { this.RA = MEMR(this.HL); this.gbCPUTicks = 8; }; // LD A,(HL)
-        this.OP[0x7F] = this.gb_CPU_NOP; // LD A,A
-        this.OP[0x80] = () => { this.gb_CPU_ADD_A('RB', 4); }; // ADD A,B
-        this.OP[0x81] = () => { this.gb_CPU_ADD_A('RC', 4); }; // ADD A,C
-        this.OP[0x82] = () => { this.gb_CPU_ADD_A('RD', 4); }; // ADD A,D
-        this.OP[0x83] = () => { this.gb_CPU_ADD_A('RE', 4); }; // ADD A,E
-        this.OP[0x84] = () => { this.T1 = this.HL >> 8; this.gb_CPU_ADD_A('T1', 4); }; // ADD A,H
-        this.OP[0x85] = () => { this.T1 = this.HL & 0xFF; this.gb_CPU_ADD_A('T1', 4); }; // ADD A,L
-        this.OP[0x86] = () => { this.T1 = MEMR(this.HL); this.gb_CPU_ADD_A('T1', 8); }; // ADD A,(HL)
-        this.OP[0x87] = () => { this.gb_CPU_ADD_A('RA', 4); }; // ADD A,A
-        this.OP[0x88] = () => { this.gb_CPU_ADC_A('RB', 4); }; // ADC A,B
-        this.OP[0x89] = () => { this.gb_CPU_ADC_A('RC', 4); }; // ADC A,C
-        this.OP[0x8A] = () => { this.gb_CPU_ADC_A('RD', 4); }; // ADC A,D
-        this.OP[0x8B] = () => { this.gb_CPU_ADC_A('RE', 4); }; // ADC A,E
-        this.OP[0x8C] = () => { this.T1 = this.HL >> 8; this.gb_CPU_ADC_A('T1', 4); }; // ADC A,H
-        this.OP[0x8D] = () => { this.T1 = this.HL & 0xFF; this.gb_CPU_ADC_A('T1', 4); }; // ADC A,L
-        this.OP[0x8E] = () => { this.T1 = MEMR(this.HL); this.gb_CPU_ADC_A('T1', 8); }; // ADC A,(HL)
-        this.OP[0x8F] = () => { this.gb_CPU_ADC_A('RA', 4); }; // ADC A,A
-        this.OP[0x90] = () => { this.gb_CPU_SUB_A('RB', 4); }; // SUB B
-        this.OP[0x91] = () => { this.gb_CPU_SUB_A('RC', 4); }; // SUB C
-        this.OP[0x92] = () => { this.gb_CPU_SUB_A('RD', 4); }; // SUB D
-        this.OP[0x93] = () => { this.gb_CPU_SUB_A('RE', 4); }; // SUB E
-        this.OP[0x94] = () => { this.T1 = this.HL >> 8; this.gb_CPU_SUB_A('T1', 4); }; // SUB H
-        this.OP[0x95] = () => { this.T1 = this.HL & 0xFF; this.gb_CPU_SUB_A('T1', 4); }; // SUB L
-        this.OP[0x96] = () => { this.T1 = MEMR(this.HL); this.gb_CPU_SUB_A('T1', 8); }; // SUB (HL)
-        this.OP[0x97] = () => { this.gb_CPU_SUB_A('RA', 4); }; // SUB A
-        this.OP[0x98] = () => { this.gb_CPU_SBC_A('RB', 4); }; // SBC A,B
-        this.OP[0x99] = () => { this.gb_CPU_SBC_A('RC', 4); }; // SBC A,C
-        this.OP[0x9A] = () => { this.gb_CPU_SBC_A('RD', 4); }; // SBC A,D
-        this.OP[0x9B] = () => { this.gb_CPU_SBC_A('RE', 4); }; // SBC A,E
-        this.OP[0x9C] = () => { this.T1 = this.HL >> 8; this.gb_CPU_SBC_A('T1', 4); }; // SBC A,H
-        this.OP[0x9D] = () => { this.T1 = this.HL & 0xFF; this.gb_CPU_SBC_A('T1', 4); }; // SBC A,L
-        this.OP[0x9E] = () => { this.T1 = MEMR(this.HL); this.gb_CPU_SBC_A('T1', 8); }; // SBC A,(HL)
-        this.OP[0x9F] = () => { this.gb_CPU_SBC_A('RA', 4); }; // SBC A,A
-        this.OP[0xA0] = () => { this.gb_CPU_AND_A(this.RB, 4); }; // AND B
-        this.OP[0xA1] = () => { this.gb_CPU_AND_A(this.RC, 4); }; // AND C
-        this.OP[0xA2] = () => { this.gb_CPU_AND_A(this.RD, 4); }; // AND D
-        this.OP[0xA3] = () => { this.gb_CPU_AND_A(this.RE, 4); }; // AND E
-        this.OP[0xA4] = () => { this.gb_CPU_AND_A(this.HL >> 8, 4); }; // AND H
-        this.OP[0xA5] = () => { this.gb_CPU_AND_A(this.HL & 0xFF, 4); }; // AND L
-        this.OP[0xA6] = () => { this.gb_CPU_AND_A(MEMR(this.HL), 8); }; // AND (HL)
+        this.OP[0x3B] = () => { this.SP = (this.SP - 1) & 0xFFFF; this.cpuTicks = 8; }; // DEC SP
+        this.OP[0x3C] = () => this.INC('RA', 4); // INC A
+        this.OP[0x3D] = () => this.DEC('RA', 4); // DEC A
+        this.OP[0x3E] = () => { this.RA = MEMR(this.PC++); this.cpuTicks = 8; }; // LD A,u8;
+        this.OP[0x3F] = () => { this.FC = (~this.FC) & 1; this.FN = this.FH = 0; this.cpuTicks = 4; }; // CCF
+        this.OP[0x40] = () => this.NOP(); // LD B,B
+        this.OP[0x41] = () => { this.RB = this.RC; this.cpuTicks = 4; }; // LD B,C
+        this.OP[0x42] = () => { this.RB = this.RD; this.cpuTicks = 4; }; // LD B,D
+        this.OP[0x43] = () => { this.RB = this.RE; this.cpuTicks = 4; }; // LD B,E
+        this.OP[0x44] = () => { this.RB = this.HL >> 8; this.cpuTicks = 4; }; // LD B,H
+        this.OP[0x45] = () => { this.RB = this.HL & 0xFF; this.cpuTicks = 4; }; // LD B,L
+        this.OP[0x46] = () => { this.RB = MEMR(this.HL); this.cpuTicks = 8; }; // LD B,(HL)
+        this.OP[0x47] = () => { this.RB = this.RA; this.cpuTicks = 4; }; // LD B,A
+        this.OP[0x48] = () => { this.RC = this.RB; this.cpuTicks = 4; }; // LD C,B
+        this.OP[0x49] = () => this.NOP(); // LD C,C
+        this.OP[0x4A] = () => { this.RC = this.RD; this.cpuTicks = 4; }; // LD C,D
+        this.OP[0x4B] = () => { this.RC = this.RE; this.cpuTicks = 4; }; // LD C,E
+        this.OP[0x4C] = () => { this.RC = this.HL >> 8; this.cpuTicks = 4; }; // LD C,H
+        this.OP[0x4D] = () => { this.RC = this.HL & 0xFF; this.cpuTicks = 4; }; // LD C,L
+        this.OP[0x4E] = () => { this.RC = MEMR(this.HL); this.cpuTicks = 8; }; // LD C,(HL)
+        this.OP[0x4F] = () => { this.RC = this.RA; this.cpuTicks = 4; }; // LD C,A
+        this.OP[0x50] = () => { this.RD = this.RB; this.cpuTicks = 4; }; // LD D,B
+        this.OP[0x51] = () => { this.RD = this.RC; this.cpuTicks = 4; }; // LD D,C
+        this.OP[0x52] = () => this.NOP(); // LD D,D
+        this.OP[0x53] = () => { this.RD = this.RE; this.cpuTicks = 4; }; // LD D,E
+        this.OP[0x54] = () => { this.RD = this.HL >> 8; this.cpuTicks = 4; }; // LD D,H
+        this.OP[0x55] = () => { this.RD = this.HL & 0xFF; this.cpuTicks = 4; }; // LD D,L
+        this.OP[0x56] = () => { this.RD = MEMR(this.HL); this.cpuTicks = 8; }; // LD D,(HL)
+        this.OP[0x57] = () => { this.RD = this.RA; this.cpuTicks = 4; }; // LD D,A
+        this.OP[0x58] = () => { this.RE = this.RB; this.cpuTicks = 4; }; // LD E,B
+        this.OP[0x59] = () => { this.RE = this.RC; this.cpuTicks = 4; }; // LD E,C
+        this.OP[0x5A] = () => { this.RE = this.RD; this.cpuTicks = 4; }; // LD E,D
+        this.OP[0x5B] = () => this.NOP(); // LD E,E
+        this.OP[0x5C] = () => { this.RE = this.HL >> 8; this.cpuTicks = 4; }; // LD E,H
+        this.OP[0x5D] = () => { this.RE = this.HL & 0xFF; this.cpuTicks = 4; }; // LD E,L
+        this.OP[0x5E] = () => { this.RE = MEMR(this.HL); this.cpuTicks = 8; }; // LD E,(HL)
+        this.OP[0x5F] = () => { this.RE = this.RA; this.cpuTicks = 4; }; // LD E,A
+        this.OP[0x60] = () => { this.HL = (this.HL & 0x00FF) | (this.RB << 8); this.cpuTicks = 4; }; // LD H,B
+        this.OP[0x61] = () => { this.HL = (this.HL & 0x00FF) | (this.RC << 8); this.cpuTicks = 4; }; // LD H,C
+        this.OP[0x62] = () => { this.HL = (this.HL & 0x00FF) | (this.RD << 8); this.cpuTicks = 4; }; // LD H,D
+        this.OP[0x63] = () => { this.HL = (this.HL & 0x00FF) | (this.RE << 8); this.cpuTicks = 4; }; // LD H,E
+        this.OP[0x64] = () => this.NOP(); // LD H,H
+        this.OP[0x65] = () => { this.HL = (this.HL & 0x00FF) | ((this.HL & 0xFF) << 8); this.cpuTicks = 4; }; // LD H,L
+        this.OP[0x66] = () => { this.HL = (this.HL & 0x00FF) | (MEMR(this.HL) << 8); this.cpuTicks = 8; }; // LD H,(HL)
+        this.OP[0x67] = () => { this.HL = (this.RA << 8) | (this.HL & 0xFF); this.cpuTicks = 4; }; // LD H,A
+        this.OP[0x68] = () => { this.HL = (this.HL & 0xFF00) | this.RB; this.cpuTicks = 4; }; // LD L,B
+        this.OP[0x69] = () => { this.HL = (this.HL & 0xFF00) | this.RC; this.cpuTicks = 4; }; // LD L,C
+        this.OP[0x6A] = () => { this.HL = (this.HL & 0xFF00) | this.RD; this.cpuTicks = 4; }; // LD L,D
+        this.OP[0x6B] = () => { this.HL = (this.HL & 0xFF00) | this.RE; this.cpuTicks = 4; }; // LD L,E
+        this.OP[0x6C] = () => { this.HL = (this.HL & 0xFF00) | (this.HL >> 8); this.cpuTicks = 4; }; // LD L,H
+        this.OP[0x6D] = () => this.NOP(); // LD L,L
+        this.OP[0x6E] = () => { this.HL = (this.HL & 0xFF00) | (MEMR(this.HL)); this.cpuTicks = 8; }; // LD L,(HL)
+        this.OP[0x6F] = () => { this.HL = this.RA | (this.HL & 0xFF00); this.cpuTicks = 4; }; // LD L,A
+        this.OP[0x70] = () => { MEMW(this.HL, this.RB); this.cpuTicks = 8; }; // LD (HL),B
+        this.OP[0x71] = () => { MEMW(this.HL, this.RC); this.cpuTicks = 8; }; // LD (HL),C
+        this.OP[0x72] = () => { MEMW(this.HL, this.RD); this.cpuTicks = 8; }; // LD (HL),D
+        this.OP[0x73] = () => { MEMW(this.HL, this.RE); this.cpuTicks = 8; }; // LD (HL),E
+        this.OP[0x74] = () => { MEMW(this.HL, this.HL >> 8); this.cpuTicks = 8; }; // LD (HL),H
+        this.OP[0x75] = () => { MEMW(this.HL, this.HL & 0x00FF); this.cpuTicks = 8; }; // LD (HL),L
+        this.OP[0x76] = () => this.HALT(); // HALT
+        this.OP[0x77] = () => { MEMW(this.HL, this.RA); this.cpuTicks = 8; }; // LD (HL),A
+        this.OP[0x78] = () => { this.RA = this.RB; this.cpuTicks = 4; }; // LD A,B
+        this.OP[0x79] = () => { this.RA = this.RC; this.cpuTicks = 4; }; // LD A,C
+        this.OP[0x7A] = () => { this.RA = this.RD; this.cpuTicks = 4; }; // LD A,D
+        this.OP[0x7B] = () => { this.RA = this.RE; this.cpuTicks = 4; }; // LD A,E
+        this.OP[0x7C] = () => { this.RA = this.HL >> 8; this.cpuTicks = 4; }; // LD A,H
+        this.OP[0x7D] = () => { this.RA = this.HL & 0xFF; this.cpuTicks = 4; }; // LD A,L
+        this.OP[0x7E] = () => { this.RA = MEMR(this.HL); this.cpuTicks = 8; }; // LD A,(HL)
+        this.OP[0x7F] = () => this.NOP(); // LD A,A
+        this.OP[0x80] = () => this.ADD_A('RB', 4); // ADD A,B
+        this.OP[0x81] = () => this.ADD_A('RC', 4); // ADD A,C
+        this.OP[0x82] = () => this.ADD_A('RD', 4); // ADD A,D
+        this.OP[0x83] = () => this.ADD_A('RE', 4); // ADD A,E
+        this.OP[0x84] = () => { this.T1 = this.HL >> 8; this.ADD_A('T1', 4); }; // ADD A,H
+        this.OP[0x85] = () => { this.T1 = this.HL & 0xFF; this.ADD_A('T1', 4); }; // ADD A,L
+        this.OP[0x86] = () => { this.T1 = MEMR(this.HL); this.ADD_A('T1', 8); }; // ADD A,(HL)
+        this.OP[0x87] = () => this.ADD_A('RA', 4); // ADD A,A
+        this.OP[0x88] = () => this.ADC_A('RB', 4); // ADC A,B
+        this.OP[0x89] = () => this.ADC_A('RC', 4); // ADC A,C
+        this.OP[0x8A] = () => this.ADC_A('RD', 4); // ADC A,D
+        this.OP[0x8B] = () => this.ADC_A('RE', 4); // ADC A,E
+        this.OP[0x8C] = () => { this.T1 = this.HL >> 8; this.ADC_A('T1', 4); }; // ADC A,H
+        this.OP[0x8D] = () => { this.T1 = this.HL & 0xFF; this.ADC_A('T1', 4); }; // ADC A,L
+        this.OP[0x8E] = () => { this.T1 = MEMR(this.HL); this.ADC_A('T1', 8); }; // ADC A,(HL)
+        this.OP[0x8F] = () => this.ADC_A('RA', 4); // ADC A,A
+        this.OP[0x90] = () => this.SUB_A('RB', 4); // SUB B
+        this.OP[0x91] = () => this.SUB_A('RC', 4); // SUB C
+        this.OP[0x92] = () => this.SUB_A('RD', 4); // SUB D
+        this.OP[0x93] = () => this.SUB_A('RE', 4); // SUB E
+        this.OP[0x94] = () => { this.T1 = this.HL >> 8; this.SUB_A('T1', 4); }; // SUB H
+        this.OP[0x95] = () => { this.T1 = this.HL & 0xFF; this.SUB_A('T1', 4); }; // SUB L
+        this.OP[0x96] = () => { this.T1 = MEMR(this.HL); this.SUB_A('T1', 8); }; // SUB (HL)
+        this.OP[0x97] = () => this.SUB_A('RA', 4); // SUB A
+        this.OP[0x98] = () => this.SBC_A('RB', 4); // SBC A,B
+        this.OP[0x99] = () => this.SBC_A('RC', 4); // SBC A,C
+        this.OP[0x9A] = () => this.SBC_A('RD', 4); // SBC A,D
+        this.OP[0x9B] = () => this.SBC_A('RE', 4); // SBC A,E
+        this.OP[0x9C] = () => { this.T1 = this.HL >> 8; this.SBC_A('T1', 4); }; // SBC A,H
+        this.OP[0x9D] = () => { this.T1 = this.HL & 0xFF; this.SBC_A('T1', 4); }; // SBC A,L
+        this.OP[0x9E] = () => { this.T1 = MEMR(this.HL); this.SBC_A('T1', 8); }; // SBC A,(HL)
+        this.OP[0x9F] = () => this.SBC_A('RA', 4); // SBC A,A
+        this.OP[0xA0] = () => this.AND_A(this.RB, 4); // AND B
+        this.OP[0xA1] = () => this.AND_A(this.RC, 4); // AND C
+        this.OP[0xA2] = () => this.AND_A(this.RD, 4); // AND D
+        this.OP[0xA3] = () => this.AND_A(this.RE, 4); // AND E
+        this.OP[0xA4] = () => this.AND_A(this.HL >> 8, 4); // AND H
+        this.OP[0xA5] = () => this.AND_A(this.HL & 0xFF, 4); // AND L
+        this.OP[0xA6] = () => this.AND_A(MEMR(this.HL), 8); // AND (HL)
         this.OP[0xA7] = () => {
             this.FZ = (this.RA == 0) ? 1 : 0;
             this.FH = 1;
             this.FN = this.FC = 0;
-            this.gbCPUTicks = 4;
+            this.cpuTicks = 4;
         }; // AND A
-        this.OP[0xA8] = () => { this.gb_CPU_XOR_A(this.RB, 4); }; // XOR B
-        this.OP[0xA9] = () => { this.gb_CPU_XOR_A(this.RC, 4); }; // XOR C
-        this.OP[0xAA] = () => { this.gb_CPU_XOR_A(this.RD, 4); }; // XOR D
-        this.OP[0xAB] = () => { this.gb_CPU_XOR_A(this.RE, 4); }; // XOR E
-        this.OP[0xAC] = () => { this.gb_CPU_XOR_A(this.HL >> 8, 4); }; // XOR H
-        this.OP[0xAD] = () => { this.gb_CPU_XOR_A(this.HL & 0xFF, 4); }; // XOR L
-        this.OP[0xAE] = () => { this.gb_CPU_XOR_A(MEMR(this.HL), 8); }; // XOR (HL)
+        this.OP[0xA8] = () => this.XOR_A(this.RB, 4); // XOR B
+        this.OP[0xA9] = () => this.XOR_A(this.RC, 4); // XOR C
+        this.OP[0xAA] = () => this.XOR_A(this.RD, 4); // XOR D
+        this.OP[0xAB] = () => this.XOR_A(this.RE, 4); // XOR E
+        this.OP[0xAC] = () => this.XOR_A(this.HL >> 8, 4); // XOR H
+        this.OP[0xAD] = () => this.XOR_A(this.HL & 0xFF, 4); // XOR L
+        this.OP[0xAE] = () => this.XOR_A(MEMR(this.HL), 8); // XOR (HL)
         this.OP[0xAF] = () => {
             this.RA = 0;
             this.FZ = 1;
             this.FN = this.FH = this.FC = 0;
-            this.gbCPUTicks = 4;
+            this.cpuTicks = 4;
         }; // XOR A
-        this.OP[0xB0] = () => { this.gb_CPU_OR_A(this.RB, 4); }; // OR B
-        this.OP[0xB1] = () => { this.gb_CPU_OR_A(this.RC, 4); }; // OR C
-        this.OP[0xB2] = () => { this.gb_CPU_OR_A(this.RD, 4); }; // OR D
-        this.OP[0xB3] = () => { this.gb_CPU_OR_A(this.RE, 4); }; // OR E
-        this.OP[0xB4] = () => { this.gb_CPU_OR_A(this.HL >> 8, 4); }; // OR H
-        this.OP[0xB5] = () => { this.gb_CPU_OR_A(this.HL & 0xFF, 4); }; // OR L
-        this.OP[0xB6] = () => { this.gb_CPU_OR_A(MEMR(this.HL), 8); }; // OR (HL)
+        this.OP[0xB0] = () => this.OR_A(this.RB, 4); // OR B
+        this.OP[0xB1] = () => this.OR_A(this.RC, 4); // OR C
+        this.OP[0xB2] = () => this.OR_A(this.RD, 4); // OR D
+        this.OP[0xB3] = () => this.OR_A(this.RE, 4); // OR E
+        this.OP[0xB4] = () => this.OR_A(this.HL >> 8, 4); // OR H
+        this.OP[0xB5] = () => this.OR_A(this.HL & 0xFF, 4); // OR L
+        this.OP[0xB6] = () => this.OR_A(MEMR(this.HL), 8); // OR (HL)
         this.OP[0xB7] = () => {
             this.FZ = (this.RA == 0) ? 1 : 0;
             this.FN = this.FH = this.FC = 0;
-            this.gbCPUTicks = 4;
+            this.cpuTicks = 4;
         }; // OR A
-        this.OP[0xB8] = () => { this.gb_CPU_CP_A('RB', 4); }; // CP B
-        this.OP[0xB9] = () => { this.gb_CPU_CP_A('RC', 4); }; // CP C
-        this.OP[0xBA] = () => { this.gb_CPU_CP_A('RD', 4); }; // CP D
-        this.OP[0xBB] = () => { this.gb_CPU_CP_A('RE', 4); }; // CP E
-        this.OP[0xBC] = () => { this.T1 = this.HL >> 8; this.gb_CPU_CP_A('T1', 4); }; // CP H
-        this.OP[0xBD] = () => { this.T1 = this.HL & 0xFF; this.gb_CPU_CP_A('T1', 4); }; // CP L
-        this.OP[0xBE] = () => { this.T1 = MEMR(this.HL); this.gb_CPU_CP_A('T1', 8); }; // CP (HL)
-        this.OP[0xBF] = () => { this.gb_CPU_CP_A('RA', 4); }; // CP A
-        this.OP[0xC0] = () => { this.gb_CPU_RET(!this.FZ); }; // RET NZ
-        this.OP[0xC1] = () => { this.RC = MEMR(this.SP++); this.RB = MEMR(this.SP++); this.gbCPUTicks = 12; }; // POP BC
-        this.OP[0xC2] = () => { this.gb_CPU_JP(!this.FZ); };// JP NZ,u16
-        this.OP[0xC3] = () => { this.gb_CPU_JP(true); };// JP u16;
-        this.OP[0xC4] = () => { this.gb_CPU_CALL(!this.FZ); };// CALL NZ,u16
-        this.OP[0xC5] = () => { MEMW(--this.SP, this.RB); MEMW(--this.SP, this.RC); this.gbCPUTicks = 16; }; // PUSH BC
-        this.OP[0xC6] = () => { this.T1 = MEMR(this.PC++); this.gb_CPU_ADD_A('T1', 8); };// ADD A,u8
-        this.OP[0xC7] = () => { this.gb_CPU_RST(0x00); };// RST 0x00
-        this.OP[0xC8] = () => { this.gb_CPU_RET(this.FZ != 0); };// RET Z
-        this.OP[0xC9] = () => { this.gb_CPU_RET(true); };// RET
-        this.OP[0xCA] = () => { this.gb_CPU_JP(this.FZ != 0); };// JP Z,u16;
-        this.OP[0xCB] = () => { this.OPCB[MEMR(this.PC++)](); };
-        this.OP[0xCC] = () => { this.gb_CPU_CALL(this.FZ != 0); };// CALL Z,u16
-        this.OP[0xCD] = () => { this.gb_CPU_CALL(true); };// CALL u16
-        this.OP[0xCE] = () => { this.T1 = MEMR(this.PC++); this.gb_CPU_ADC_A('T1', 4); };// ADC A,u8;
-        this.OP[0xCF] = () => { this.gb_CPU_RST(0x08); };// RST 0x08
-        this.OP[0xD0] = () => { this.gb_CPU_RET(!this.FC); };// RET NC
-        this.OP[0xD1] = () => { this.RE = MEMR(this.SP++); this.RD = MEMR(this.SP++); this.gbCPUTicks = 12; }; // POP DE
-        this.OP[0xD2] = () => { this.gb_CPU_JP(!this.FC); };// JP NC,u16
-        this.OP[0xD3] = this.gb_CPU_UNK;
-        this.OP[0xD4] = () => { this.gb_CPU_CALL(!this.FC); };// CALL NC,u16
-        this.OP[0xD5] = () => { MEMW(--this.SP, this.RD); MEMW(--this.SP, this.RE); this.gbCPUTicks = 16; }; // PUSH DE
+        this.OP[0xB8] = () => this.CP_A('RB', 4); // CP B
+        this.OP[0xB9] = () => this.CP_A('RC', 4); // CP C
+        this.OP[0xBA] = () => this.CP_A('RD', 4); // CP D
+        this.OP[0xBB] = () => this.CP_A('RE', 4); // CP E
+        this.OP[0xBC] = () => { this.T1 = this.HL >> 8; this.CP_A('T1', 4); }; // CP H
+        this.OP[0xBD] = () => { this.T1 = this.HL & 0xFF; this.CP_A('T1', 4); }; // CP L
+        this.OP[0xBE] = () => { this.T1 = MEMR(this.HL); this.CP_A('T1', 8); }; // CP (HL)
+        this.OP[0xBF] = () => this.CP_A('RA', 4); // CP A
+        this.OP[0xC0] = () => this.RET(!this.FZ); // RET NZ
+        this.OP[0xC1] = () => { this.RC = MEMR(this.SP++); this.RB = MEMR(this.SP++); this.cpuTicks = 12; }; // POP BC
+        this.OP[0xC2] = () => this.JP(!this.FZ); // JP NZ,u16
+        this.OP[0xC3] = () => this.JP(true); // JP u16;
+        this.OP[0xC4] = () => this.CALL(!this.FZ); // CALL NZ,u16
+        this.OP[0xC5] = () => { MEMW(--this.SP, this.RB); MEMW(--this.SP, this.RC); this.cpuTicks = 16; }; // PUSH BC
+        this.OP[0xC6] = () => { this.T1 = MEMR(this.PC++); this.ADD_A('T1', 8); }; // ADD A,u8
+        this.OP[0xC7] = () => this.RST(0x00); // RST 0x00
+        this.OP[0xC8] = () => this.RET(this.FZ != 0); // RET Z
+        this.OP[0xC9] = () => this.RET(true); // RET
+        this.OP[0xCA] = () => this.JP(this.FZ != 0); // JP Z,u16;
+        this.OP[0xCB] = () => this.OPCB[MEMR(this.PC++)]();
+        this.OP[0xCC] = () => this.CALL(this.FZ != 0); // CALL Z,u16
+        this.OP[0xCD] = () => this.CALL(true); // CALL u16
+        this.OP[0xCE] = () => { this.T1 = MEMR(this.PC++); this.ADC_A('T1', 4); }; // ADC A,u8;
+        this.OP[0xCF] = () => this.RST(0x08); // RST 0x08
+        this.OP[0xD0] = () => this.RET(!this.FC); // RET NC
+        this.OP[0xD1] = () => { this.RE = MEMR(this.SP++); this.RD = MEMR(this.SP++); this.cpuTicks = 12; }; // POP DE
+        this.OP[0xD2] = () => this.JP(!this.FC); // JP NC,u16
+        this.OP[0xD3] = () => this.UNK();
+        this.OP[0xD4] = () => this.CALL(!this.FC); // CALL NC,u16
+        this.OP[0xD5] = () => { MEMW(--this.SP, this.RD); MEMW(--this.SP, this.RE); this.cpuTicks = 16; }; // PUSH DE
         this.OP[0xD6] = () => {
             this.T1 = MEMR(this.PC++);
-            this.gb_CPU_SUB_A('T1', 8);
+            this.SUB_A('T1', 8);
         };// SUB u8
-        this.OP[0xD7] = () => { this.gb_CPU_RST(0x10); };// RST 0x10
-        this.OP[0xD8] = () => { this.gb_CPU_RET(this.FC != 0); };// RET C
+        this.OP[0xD7] = () => this.RST(0x10); // RST 0x10
+        this.OP[0xD8] = () => this.RET(this.FC != 0); // RET C
         this.OP[0xD9] = () => {
-            this.gb_CPU_RET(true);
+            this.RET(true);
             this.gbIME = true;
         };// RETI
-        this.OP[0xDA] = () => { this.gb_CPU_JP(this.FC != 0); };// JP C,u16
-        this.OP[0xDB] = this.gb_CPU_UNK;
-        this.OP[0xDC] = () => { this.gb_CPU_CALL(this.FC != 0); };// CALL C,u16
-        this.OP[0xDD] = this.gb_CPU_UNK;
-        this.OP[0xDE] = () => { this.T1 = MEMR(this.PC++); this.gb_CPU_SBC_A('T1', 8); };// SBC A,u8;
-        this.OP[0xDF] = () => { this.gb_CPU_RST(0x18); };// RST 0x18
-        this.OP[0xE0] = () => { MEMW(0xFF00 + MEMR(this.PC++), this.RA); this.gbCPUTicks = 12; }; // LD (0xFF00+u8),A
+        this.OP[0xDA] = () => this.JP(this.FC != 0); // JP C,u16
+        this.OP[0xDB] = () => this.UNK();
+        this.OP[0xDC] = () => this.CALL(this.FC != 0); // CALL C,u16
+        this.OP[0xDD] = () => this.UNK();
+        this.OP[0xDE] = () => { this.T1 = MEMR(this.PC++); this.SBC_A('T1', 8); }; // SBC A,u8;
+        this.OP[0xDF] = () => this.RST(0x18); // RST 0x18
+        this.OP[0xE0] = () => { MEMW(0xFF00 + MEMR(this.PC++), this.RA); this.cpuTicks = 12; }; // LD (0xFF00+u8),A
         this.OP[0xE1] = () => {
             this.T1 = MEMR(this.SP++);
             this.HL = (MEMR(this.SP++) << 8) | this.T1;
-            this.gbCPUTicks = 12;
+            this.cpuTicks = 12;
         }; // POP HL
-        this.OP[0xE2] = () => { MEMW(0xFF00 + this.RC, this.RA); this.gbCPUTicks = 8; }; // LD (0xFF00+C),A
-        this.OP[0xE3] = this.gb_CPU_UNK;
-        this.OP[0xE4] = this.gb_CPU_UNK;
+        this.OP[0xE2] = () => { MEMW(0xFF00 + this.RC, this.RA); this.cpuTicks = 8; }; // LD (0xFF00+C),A
+        this.OP[0xE3] = () => this.UNK();
+        this.OP[0xE4] = () => this.UNK();
         this.OP[0xE5] = () => {
             MEMW(--this.SP, this.HL >> 8);
             MEMW(--this.SP, this.HL & 0xFF);
-            this.gbCPUTicks = 16;
+            this.cpuTicks = 16;
         }; // PUSH HL
-        this.OP[0xE6] = () => { this.gb_CPU_AND_A(MEMR(this.PC++), 8); };// AND u8
-        this.OP[0xE7] = () => { this.gb_CPU_RST(0x20); };// RST 0x20
+        this.OP[0xE6] = () => this.AND_A(MEMR(this.PC++), 8); // AND u8
+        this.OP[0xE7] = () => this.RST(0x20); // RST 0x20
         this.OP[0xE8] = () => {
-            this.SP = this.gb_CPU_ADD16(this.SP, sb(MEMR(this.PC++)));
-            this.gbCPUTicks += 8;
+            this.SP = this.ADD16(this.SP, sb(MEMR(this.PC++)));
+            this.cpuTicks += 8;
         }; // ADD SP,u8
-        this.OP[0xE9] = () => { this.PC = this.HL; this.gbCPUTicks = 4; }; // JP (HL)
+        this.OP[0xE9] = () => { this.PC = this.HL; this.cpuTicks = 4; }; // JP (HL)
         this.OP[0xEA] = () => {
             MEMW((MEMR(this.PC + 1) << 8) | MEMR(this.PC), this.RA);
             this.PC += 2;
-            this.gbCPUTicks = 16;
+            this.cpuTicks = 16;
         }; // LD (u16),A
-        this.OP[0xEB] = this.gb_CPU_UNK;
-        this.OP[0xEC] = this.gb_CPU_UNK;
-        this.OP[0xED] = this.gb_CPU_UNK;
-        this.OP[0xEE] = () => { this.gb_CPU_XOR_A(MEMR(this.PC++), 8); };// XOR u8
-        this.OP[0xEF] = () => { this.gb_CPU_RST(0x28); };// RST 0x28
+        this.OP[0xEB] = () => this.UNK();
+        this.OP[0xEC] = () => this.UNK();
+        this.OP[0xED] = () => this.UNK();
+        this.OP[0xEE] = () => this.XOR_A(MEMR(this.PC++), 8); // XOR u8
+        this.OP[0xEF] = () => this.RST(0x28); // RST 0x28
         this.OP[0xF0] = () => {
             this.RA = MEMR(0xFF00 + MEMR(this.PC++));
-            this.gbCPUTicks = 12;
+            this.cpuTicks = 12;
         }; // LD A,(0xFF00+u8)
         this.OP[0xF1] = () => {
             this.T1 = MEMR(this.SP++);
@@ -745,18 +755,18 @@ class CPU {
             this.FN = (this.T1 >> 6) & 1;
             this.FH = (this.T1 >> 5) & 1;
             this.FC = (this.T1 >> 4) & 1;
-            this.gbCPUTicks = 12;
+            this.cpuTicks = 12;
         }; // POP AF
-        this.OP[0xF2] = () => { this.RA = MEMR(0xFF00 + this.RC); this.gbCPUTicks = 8; }; // LD A,(0xFF00+C)
-        this.OP[0xF3] = () => { this.gbIME = false; this.gbCPUTicks = 4; }; // DI
-        this.OP[0xF4] = this.gb_CPU_UNK;
+        this.OP[0xF2] = () => { this.RA = MEMR(0xFF00 + this.RC); this.cpuTicks = 8; }; // LD A,(0xFF00+C)
+        this.OP[0xF3] = () => { this.gbIME = false; this.cpuTicks = 4; }; // DI
+        this.OP[0xF4] = () => this.UNK();
         this.OP[0xF5] = () => {
             MEMW(--this.SP, this.RA);
             MEMW(--this.SP,(this.FZ << 7) | (this.FN << 6) | (this.FH << 5) | (this.FC << 4));
-            this.gbCPUTicks = 16;
+            this.cpuTicks = 16;
         }; // PUSH AF
-        this.OP[0xF6] = () => { this.gb_CPU_OR_A(MEMR(this.PC++), 8); }; // OR u8;
-        this.OP[0xF7] = () => { this.gb_CPU_RST(0x30); }; // RST 0x30
+        this.OP[0xF6] = () => this.OR_A(MEMR(this.PC++), 8); // OR u8;
+        this.OP[0xF7] = () => this.RST(0x30); // RST 0x30
         this.OP[0xF8] = () => {
             var n = MEMR(this.PC++);
             this.HL = this.SP + sb(n);
@@ -764,91 +774,91 @@ class CPU {
             this.FN = 0;
             this.FH = (((this.SP & 0x0F) + (n & 0x0F)) > 0x0F) ? 1 : 0;
             this.FC = (((this.SP & 0xFF) + (n & 0xFF)) > 0xFF) ? 1 : 0;
-            this.gbCPUTicks = 12;
+            this.cpuTicks = 12;
         }; // LD HL,SP+u8;
-        this.OP[0xF9] = () => { this.SP = this.HL; this.gbCPUTicks = 8; }; // LD SP,HL
+        this.OP[0xF9] = () => { this.SP = this.HL; this.cpuTicks = 8; }; // LD SP,HL
         this.OP[0xFA] = () => {
             this.RA = MEMR((MEMR(this.PC + 1) << 8) | MEMR(this.PC));
             this.PC += 2;
-            this.gbCPUTicks = 16;
+            this.cpuTicks = 16;
         }; // LD A,(u16)
-        this.OP[0xFB] = () => { this.gbIME = true; this.gbCPUTicks = 4; }; // EI
-        this.OP[0xFC] = this.gb_CPU_UNK;
-        this.OP[0xFD] = this.gb_CPU_UNK;
-        this.OP[0xFE] = () => { this.T1 = MEMR(this.PC++); this.gb_CPU_CP_A('T1', 8); }; // CP u8
-        this.OP[0xFF] = () => { this.gb_CPU_RST(0x38); }; // RST 0x38
+        this.OP[0xFB] = () => { this.gbIME = true; this.cpuTicks = 4; }; // EI
+        this.OP[0xFC] = () => this.UNK();
+        this.OP[0xFD] = () => this.UNK();
+        this.OP[0xFE] = () => { this.T1 = MEMR(this.PC++); this.CP_A('T1', 8); }; // CP u8
+        this.OP[0xFF] = () => this.RST(0x38); // RST 0x38
     }
 
     initializeOPCB() {
-        this.OPCB[0x00] = () => { this.RB = this.gb_CPU_RLC(this.RB); };
-        this.OPCB[0x01] = () => { this.RC = this.gb_CPU_RLC(this.RC); };
-        this.OPCB[0x02] = () => { this.RD = this.gb_CPU_RLC(this.RD); };
-        this.OPCB[0x03] = () => { this.RE = this.gb_CPU_RLC(this.RE); };
-        this.OPCB[0x04] = () => { this.HL = (this.HL & 0x00FF) | (this.gb_CPU_RLC(this.HL >> 8) << 8); };
-        this.OPCB[0x05] = () => { this.HL = (this.HL & 0xFF00) | this.gb_CPU_RLC(this.HL & 0xFF); };
-        this.OPCB[0x06] = () => { MEMW(this.HL, this.gb_CPU_RLC(MEMR(this.HL))); this.gbCPUTicks += 8; };
-        this.OPCB[0x07] = () => { this.RA = this.gb_CPU_RLC(this.RA); };
-        this.OPCB[0x08] = () => { this.RB = this.gb_CPU_RRC(this.RB); };
-        this.OPCB[0x09] = () => { this.RC = this.gb_CPU_RRC(this.RC); };
-        this.OPCB[0x0A] = () => { this.RD = this.gb_CPU_RRC(this.RD); };
-        this.OPCB[0x0B] = () => { this.RE = this.gb_CPU_RRC(this.RE); };
-        this.OPCB[0x0C] = () => { this.HL = (this.HL & 0x00FF) | (this.gb_CPU_RRC(this.HL >> 8) << 8); };
-        this.OPCB[0x0D] = () => { this.HL = (this.HL & 0xFF00) | this.gb_CPU_RRC(this.HL & 0xFF); };
-        this.OPCB[0x0E] = () => { MEMW(this.HL, this.gb_CPU_RRC(MEMR(this.HL))); this.gbCPUTicks += 8; };
-        this.OPCB[0x0F] = () => { this.RA = this.gb_CPU_RRC(this.RA); };
-        this.OPCB[0x10] = () => { this.RB = this.gb_CPU_RL(this.RB); };
-        this.OPCB[0x11] = () => { this.RC = this.gb_CPU_RL(this.RC); };
-        this.OPCB[0x12] = () => { this.RD = this.gb_CPU_RL(this.RD); };
-        this.OPCB[0x13] = () => { this.RE = this.gb_CPU_RL(this.RE); };
-        this.OPCB[0x14] = () => { this.HL = (this.HL & 0x00FF) | (this.gb_CPU_RL(this.HL >> 8) << 8); };
-        this.OPCB[0x15] = () => { this.HL = (this.HL & 0xFF00) | this.gb_CPU_RL(this.HL & 0xFF); };
+        this.OPCB[0x00] = () => this.RB = this.RLC(this.RB);
+        this.OPCB[0x01] = () => this.RC = this.RLC(this.RC);
+        this.OPCB[0x02] = () => this.RD = this.RLC(this.RD);
+        this.OPCB[0x03] = () => this.RE = this.RLC(this.RE);
+        this.OPCB[0x04] = () => this.HL = (this.HL & 0x00FF) | (this.RLC(this.HL >> 8) << 8);
+        this.OPCB[0x05] = () => this.HL = (this.HL & 0xFF00) | this.RLC(this.HL & 0xFF);
+        this.OPCB[0x06] = () => { MEMW(this.HL, this.RLC(MEMR(this.HL))); this.cpuTicks += 8; };
+        this.OPCB[0x07] = () => this.RA = this.RLC(this.RA);
+        this.OPCB[0x08] = () => this.RB = this.RRC(this.RB);
+        this.OPCB[0x09] = () => this.RC = this.RRC(this.RC);
+        this.OPCB[0x0A] = () => this.RD = this.RRC(this.RD);
+        this.OPCB[0x0B] = () => this.RE = this.RRC(this.RE);
+        this.OPCB[0x0C] = () => this.HL = (this.HL & 0x00FF) | (this.RRC(this.HL >> 8) << 8);
+        this.OPCB[0x0D] = () => this.HL = (this.HL & 0xFF00) | this.RRC(this.HL & 0xFF);
+        this.OPCB[0x0E] = () => { MEMW(this.HL, this.RRC(MEMR(this.HL))); this.cpuTicks += 8; };
+        this.OPCB[0x0F] = () => this.RA = this.RRC(this.RA);
+        this.OPCB[0x10] = () => this.RB = this.RL(this.RB);
+        this.OPCB[0x11] = () => this.RC = this.RL(this.RC);
+        this.OPCB[0x12] = () => this.RD = this.RL(this.RD);
+        this.OPCB[0x13] = () => this.RE = this.RL(this.RE);
+        this.OPCB[0x14] = () => this.HL = (this.HL & 0x00FF) | (this.RL(this.HL >> 8) << 8);
+        this.OPCB[0x15] = () => this.HL = (this.HL & 0xFF00) | this.RL(this.HL & 0xFF);
         this.OPCB[0x16] = () => {
-            MEMW(this.HL, this.gb_CPU_RL(MEMR(this.HL)));
-            this.gbCPUTicks += 8;
+            MEMW(this.HL, this.RL(MEMR(this.HL)));
+            this.cpuTicks += 8;
         };
-        this.OPCB[0x17] = () => { this.RA = this.gb_CPU_RL(this.RA); };
-        this.OPCB[0x18] = () => { this.RB = this.gb_CPU_RR(this.RB); };
-        this.OPCB[0x19] = () => { this.RC = this.gb_CPU_RR(this.RC); };
-        this.OPCB[0x1A] = () => { this.RD = this.gb_CPU_RR(this.RD); };
-        this.OPCB[0x1B] = () => { this.RE = this.gb_CPU_RR(this.RE); };
+        this.OPCB[0x17] = () => this.RA = this.RL(this.RA);
+        this.OPCB[0x18] = () => this.RB = this.RR(this.RB);
+        this.OPCB[0x19] = () => this.RC = this.RR(this.RC);
+        this.OPCB[0x1A] = () => this.RD = this.RR(this.RD);
+        this.OPCB[0x1B] = () => this.RE = this.RR(this.RE);
         this.OPCB[0x1C] = () => {
-            this.HL = (this.HL & 0x00FF) | (this.gb_CPU_RR(this.HL >> 8) << 8);
+            this.HL = (this.HL & 0x00FF) | (this.RR(this.HL >> 8) << 8);
         };
         this.OPCB[0x1D] = () => {
-            this.HL = (this.HL & 0xFF00) | this.gb_CPU_RR(this.HL & 0xFF);
+            this.HL = (this.HL & 0xFF00) | this.RR(this.HL & 0xFF);
         };
         this.OPCB[0x1E] = () => {
-            MEMW(this.HL, this.gb_CPU_RR(MEMR(this.HL)));
-            this.gbCPUTicks += 8;
+            MEMW(this.HL, this.RR(MEMR(this.HL)));
+            this.cpuTicks += 8;
         };
-        this.OPCB[0x1F] = () => { this.RA = this.gb_CPU_RR(this.RA); };
-        this.OPCB[0x20] = () => { this.gb_CPU_SLA_R('RB', 8); }; // SLA B
-        this.OPCB[0x21] = () => { this.gb_CPU_SLA_R('RC', 8); }; // SLA C
-        this.OPCB[0x22] = () => { this.gb_CPU_SLA_R('RD', 8); }; // SLA D
-        this.OPCB[0x23] = () => { this.gb_CPU_SLA_R('RE', 8); }; // SLA E
+        this.OPCB[0x1F] = () => this.RA = this.RR(this.RA);
+        this.OPCB[0x20] = () => this.SLA_R('RB', 8); // SLA B
+        this.OPCB[0x21] = () => this.SLA_R('RC', 8); // SLA C
+        this.OPCB[0x22] = () => this.SLA_R('RD', 8); // SLA D
+        this.OPCB[0x23] = () => this.SLA_R('RE', 8); // SLA E
         this.OPCB[0x24] = () => {
             this.T1 = this.HL >> 8;
-            this.gb_CPU_SLA_R('T1', 8);
+            this.SLA_R('T1', 8);
             this.HL = (this.T1 << 8) | (this.HL & 0x00FF);
         }; // SLA H
         this.OPCB[0x25] = () => {
             this.T1 = this.HL & 0xFF;
-            this.gb_CPU_SLA_R('T1', 8);
+            this.SLA_R('T1', 8);
             this.HL = (this.HL & 0xFF00) | this.T1;
         }; // SLA L
         this.OPCB[0x26] = () => {
             this.T1 = MEMR(this.HL);
-            this.gb_CPU_SLA_R('T1', 16);
+            this.SLA_R('T1', 16);
             MEMW(this.HL, this.T1);
         }; // SLA (HL)
-        this.OPCB[0x27] = () => { this.gb_CPU_SLA_R('RA', 8); }; // SLA A
+        this.OPCB[0x27] = () => this.SLA_R('RA', 8); // SLA A
         this.OPCB[0x28] = () => {
             this.FC = this.RB & 1;
             this.RB = (this.RB >> 1) | (this.RB & 0x80);
             this.FN = 0;
             this.FH = 0;
             this.FZ = this.RB == 0 ? 1 : 0;
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // SRA n
         this.OPCB[0x29] = () => {
             this.FC = this.RC & 1;
@@ -856,7 +866,7 @@ class CPU {
             this.FN = 0;
             this.FH = 0;
             this.FZ = this.RC == 0 ? 1 : 0;
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // SRA n
         this.OPCB[0x2A] = () => {
             this.FC = this.RD & 1;
@@ -864,7 +874,7 @@ class CPU {
             this.FN = 0;
             this.FH = 0;
             this.FZ = this.RD == 0 ? 1 : 0;
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // SRA n
         this.OPCB[0x2B] = () => {
             this.FC = this.RE & 1;
@@ -872,7 +882,7 @@ class CPU {
             this.FN = 0;
             this.FH = 0;
             this.FZ = this.RE == 0 ? 1 : 0;
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // SRA n
         this.OPCB[0x2C] = () => {
             var H = this.HL >> 8;
@@ -881,7 +891,7 @@ class CPU {
             this.FH = 0;
             this.FZ = H == 0 ? 1 : 0;
             this.HL = (H << 8) | (this.HL & 0x00FF);
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // SRA n
         this.OPCB[0x2D] = () => {
             var L = this.HL & 0xFF;
@@ -890,7 +900,7 @@ class CPU {
             this.FH = 0;
             this.FZ = L == 0 ? 1 : 0;
             this.HL = (this.HL & 0xFF00) | L;
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // SRA n
         this.OPCB[0x2E] = () => {
             var M = MEMR(this.HL);
@@ -899,7 +909,7 @@ class CPU {
             this.FH = 0;
             this.FZ = M == 0 ? 1 : 0;
             MEMW(this.HL, M);
-            this.gbCPUTicks = 16;
+            this.cpuTicks = 16;
         }; // SRA n
         this.OPCB[0x2F] = () => {
             this.FC = this.RA & 1;
@@ -907,23 +917,23 @@ class CPU {
             this.FN = 0;
             this.FH = 0;
             this.FZ = this.RA == 0 ? 1 : 0;
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // SRA n
-        this.OPCB[0x30] = () => { this.gb_CPU_SWAP('RB'); };
-        this.OPCB[0x31] = () => { this.gb_CPU_SWAP('RC'); };
-        this.OPCB[0x32] = () => { this.gb_CPU_SWAP('RD'); };
-        this.OPCB[0x33] = () => { this.gb_CPU_SWAP('RE'); };
-        this.OPCB[0x34] = () => { this.gb_CPU_SWAP('H'); };
-        this.OPCB[0x35] = () => { this.gb_CPU_SWAP('L'); };
-        this.OPCB[0x36] = () => { this.gb_CPU_SWAP('(HL)'); };
-        this.OPCB[0x37] = () => { this.gb_CPU_SWAP('RA'); };
+        this.OPCB[0x30] = () => this.SWAP('RB');
+        this.OPCB[0x31] = () => this.SWAP('RC');
+        this.OPCB[0x32] = () => this.SWAP('RD');
+        this.OPCB[0x33] = () => this.SWAP('RE');
+        this.OPCB[0x34] = () => this.SWAP('H');
+        this.OPCB[0x35] = () => this.SWAP('L');
+        this.OPCB[0x36] = () => this.SWAP('(HL)');
+        this.OPCB[0x37] = () => this.SWAP('RA');
         this.OPCB[0x38] = () => {
             this.FC = this.RB & 1;
             this.RB = this.RB >> 1;
             this.FN = 0;
             this.FH = 0;
             this.FZ = this.RB == 0 ? 1 : 0;
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // SRL n
         this.OPCB[0x39] = () => {
             this.FC = this.RC & 1;
@@ -931,7 +941,7 @@ class CPU {
             this.FN = 0;
             this.FH = 0;
             this.FZ = this.RC == 0 ? 1 : 0;
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // SRL n
         this.OPCB[0x3A] = () => {
             this.FC = this.RD & 1;
@@ -939,7 +949,7 @@ class CPU {
             this.FN = 0;
             this.FH = 0;
             this.FZ = this.RD == 0 ? 1 : 0;
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // SRL n
         this.OPCB[0x3B] = () => {
             this.FC = this.RE & 1;
@@ -947,7 +957,7 @@ class CPU {
             this.FN = 0;
             this.FH = 0;
             this.FZ = this.RE == 0 ? 1 : 0;
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // SRL n
         this.OPCB[0x3C] = () => {
             var H = this.HL >> 8;
@@ -957,7 +967,7 @@ class CPU {
             this.FH = 0;
             this.FZ = H == 0 ? 1 : 0;
             this.HL = (H << 8) | (this.HL & 0x00FF);
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // SRL n
         this.OPCB[0x3D] = () => {
             var L = this.HL & 0xFF;
@@ -966,7 +976,7 @@ class CPU {
             this.FH = 0;
             this.FZ = L == 0 ? 1 : 0;
             this.HL = (this.HL & 0xFF00) | L;
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // SRL n
         this.OPCB[0x3E] = () => {
             var M = MEMR(this.HL);
@@ -976,7 +986,7 @@ class CPU {
             this.FH = 0;
             this.FZ = M == 0 ? 1 : 0;
             MEMW(this.HL, M);
-            this.gbCPUTicks = 16;
+            this.cpuTicks = 16;
         }; // SRL n
         this.OPCB[0x3F] = () => {
             this.FC = this.RA & 1;
@@ -984,432 +994,432 @@ class CPU {
             this.FN = 0;
             this.FH = 0;
             this.FZ = this.RA == 0 ? 1 : 0;
-            this.gbCPUTicks = 8;
+            this.cpuTicks = 8;
         }; // SRL n
 
         for (var i = 0; i < 8; i++) {
             var o = (1 << 6) | (i << 3);
             // BIT n,r - CB 01 xxx xxx - CB 01 bit reg
             this.OPCB[o | 7] = function (cpu: CPU, x: number) {
-                return () => { cpu.FZ = !(cpu.RA & (1 << x)) ? 1 : 0; cpu.FN = 0; cpu.FH = 1; cpu.gbCPUTicks = 8; }
+                return () => { cpu.FZ = !(cpu.RA & (1 << x)) ? 1 : 0; cpu.FN = 0; cpu.FH = 1; cpu.cpuTicks = 8; }
             } (this, i);
             this.MNCB[o | 7] = new Function("return 'BIT " + i + ",A';");
             this.OPCB[o | 0] = function (cpu: CPU, x: number) {
-                return () => { cpu.FZ = !(cpu.RB & (1 << x)) ? 1 : 0; cpu.FN = 0; cpu.FH = 1; cpu.gbCPUTicks = 8; }
+                return () => { cpu.FZ = !(cpu.RB & (1 << x)) ? 1 : 0; cpu.FN = 0; cpu.FH = 1; cpu.cpuTicks = 8; }
             } (this, i);
             this.MNCB[o | 0] = new Function("return 'BIT " + i + ",B';");
             this.OPCB[o | 1] = function (cpu: CPU, x: number) {
-                return () => { cpu.FZ = !(cpu.RC & (1 << x)) ? 1 : 0; cpu.FN = 0; cpu.FH = 1; cpu.gbCPUTicks = 8; }
+                return () => { cpu.FZ = !(cpu.RC & (1 << x)) ? 1 : 0; cpu.FN = 0; cpu.FH = 1; cpu.cpuTicks = 8; }
             } (this, i);
             this.MNCB[o | 1] = new Function("return 'BIT " + i + ",C';");
             this.OPCB[o | 2] = function (cpu: CPU, x: number) {
-                return () => { cpu.FZ = !(cpu.RD & (1 << x)) ? 1 : 0; cpu.FN = 0; cpu.FH = 1; cpu.gbCPUTicks = 8; }
+                return () => { cpu.FZ = !(cpu.RD & (1 << x)) ? 1 : 0; cpu.FN = 0; cpu.FH = 1; cpu.cpuTicks = 8; }
             } (this, i);
             this.MNCB[o | 2] = new Function("return 'BIT " + i + ",D';");
             this.OPCB[o | 3] = function (cpu: CPU, x: number) {
-                return () => { cpu.FZ = !(cpu.RE & (1 << x)) ? 1 : 0; cpu.FN = 0; cpu.FH = 1; cpu.gbCPUTicks = 8; }
+                return () => { cpu.FZ = !(cpu.RE & (1 << x)) ? 1 : 0; cpu.FN = 0; cpu.FH = 1; cpu.cpuTicks = 8; }
             } (this, i);
             this.MNCB[o | 3] = new Function("return 'BIT " + i + ",E';");
             this.OPCB[o | 4] = function (cpu: CPU, x: number) {
-                return () => { cpu.FZ = !(cpu.HL & (256 << x)) ? 1 : 0; cpu.FN = 0; cpu.FH = 1; cpu.gbCPUTicks = 8; }
+                return () => { cpu.FZ = !(cpu.HL & (256 << x)) ? 1 : 0; cpu.FN = 0; cpu.FH = 1; cpu.cpuTicks = 8; }
             } (this, i);
             this.MNCB[o | 4] = new Function("return 'BIT " + i + ",H';");
             this.OPCB[o | 5] = function (cpu: CPU, x: number) {
-                return () => { cpu.FZ = !(cpu.HL & (1 << x)) ? 1 : 0; cpu.FN = 0; cpu.FH = 1; cpu.gbCPUTicks = 8; }
+                return () => { cpu.FZ = !(cpu.HL & (1 << x)) ? 1 : 0; cpu.FN = 0; cpu.FH = 1; cpu.cpuTicks = 8; }
             } (this, i);
             this.MNCB[o | 5] = new Function("return 'BIT " + i + ",L';");
             this.OPCB[o | 6] = function (cpu: CPU, x: number) {
-                return () => { cpu.FZ = !(MEMR(cpu.HL) & (1 << x)) ? 1 : 0; cpu.FN = 0; cpu.FH = 1; cpu.gbCPUTicks = 16; }
+                return () => { cpu.FZ = !(MEMR(cpu.HL) & (1 << x)) ? 1 : 0; cpu.FN = 0; cpu.FH = 1; cpu.cpuTicks = 16; }
             } (this, i);
             this.MNCB[o | 6] = new Function("return 'BIT " + i + ",(HL)';");
             // RES n,r - CB 10 xxx xxx - CB 10 bit reg
             o = (2 << 6) | (i << 3);
             this.OPCB[o | 7] = function (cpu: CPU, x: number) {
-                return () => { cpu.RA &= ((~(1 << x)) & 0xFF); cpu.gbCPUTicks = 8; }
+                return () => { cpu.RA &= ((~(1 << x)) & 0xFF); cpu.cpuTicks = 8; }
             } (this, i);
             this.MNCB[o | 7] = new Function("return 'RES " + i + ",A';");
             this.OPCB[o | 0] = function (cpu: CPU, x: number) {
-                return () => { cpu.RB &= ((~(1 << x)) & 0xFF); cpu.gbCPUTicks = 8; }
+                return () => { cpu.RB &= ((~(1 << x)) & 0xFF); cpu.cpuTicks = 8; }
             } (this, i);
             this.MNCB[o | 0] = new Function("return 'RES " + i + ",B';");
             this.OPCB[o | 1] = function (cpu: CPU, x: number) {
-                return () => { cpu.RC &= ((~(1 << x)) & 0xFF); cpu.gbCPUTicks = 8; }
+                return () => { cpu.RC &= ((~(1 << x)) & 0xFF); cpu.cpuTicks = 8; }
             } (this, i);
             this.MNCB[o | 1] = new Function("return 'RES " + i + ",C';");
             this.OPCB[o | 2] = function (cpu: CPU, x: number) {
-                return () => { cpu.RD &= ((~(1 << x)) & 0xFF); cpu.gbCPUTicks = 8; }
+                return () => { cpu.RD &= ((~(1 << x)) & 0xFF); cpu.cpuTicks = 8; }
             } (this, i);
             this.MNCB[o | 2] = new Function("return 'RES " + i + ",D';");
             this.OPCB[o | 3] = function (cpu: CPU, x: number) {
-                return () => { cpu.RE &= ((~(1 << x)) & 0xFF); cpu.gbCPUTicks = 8; }
+                return () => { cpu.RE &= ((~(1 << x)) & 0xFF); cpu.cpuTicks = 8; }
             } (this, i);
             this.MNCB[o | 3] = new Function("return 'RES " + i + ",E';");
             this.OPCB[o | 4] = function (cpu: CPU, x: number) {
-                return () => { cpu.HL &= ((~(256 << x)) & 0xFFFF); cpu.gbCPUTicks = 8; }
+                return () => { cpu.HL &= ((~(256 << x)) & 0xFFFF); cpu.cpuTicks = 8; }
             } (this, i);
             this.MNCB[o | 4] = new Function("return 'RES " + i + ",H';");
             this.OPCB[o | 5] = function (cpu: CPU, x: number) {
-                return () => { cpu.HL &= ((~(1 << x)) & 0xFFFF); cpu.gbCPUTicks = 8; }
+                return () => { cpu.HL &= ((~(1 << x)) & 0xFFFF); cpu.cpuTicks = 8; }
             } (this, i);
             this.MNCB[o | 5] = new Function("return 'RES " + i + ",L';");
             this.OPCB[o | 6] = function (cpu: CPU, x: number) {
-                return () => { MEMW(cpu.HL, MEMR(cpu.HL) & ((~(1 << x)) & 0xFF)); cpu.gbCPUTicks = 16; }
+                return () => { MEMW(cpu.HL, MEMR(cpu.HL) & ((~(1 << x)) & 0xFF)); cpu.cpuTicks = 16; }
             } (this, i);
             this.MNCB[o | 6] = new Function("return 'RES " + i + ",(HL)';");
             // SET n,r - CB 11 xxx xxx - CB 11 bit reg
             o = (3 << 6) | (i << 3);
             this.OPCB[o | 7] = function (cpu: CPU, x: number) {
-                return () => { cpu.RA |= (1 << x); cpu.gbCPUTicks = 8; }
+                return () => { cpu.RA |= (1 << x); cpu.cpuTicks = 8; }
             } (this, i);
             this.MNCB[o | 7] = new Function("return 'SET " + i + ",A';");
             this.OPCB[o | 0] = function (cpu: CPU, x: number) {
-                return () => { cpu.RB |= (1 << x); cpu.gbCPUTicks = 8; }
+                return () => { cpu.RB |= (1 << x); cpu.cpuTicks = 8; }
             } (this, i);
             this.MNCB[o | 0] = new Function("return 'SET " + i + ",B';");
             this.OPCB[o | 1] = function (cpu: CPU, x: number) {
-                return () => { cpu.RC |= (1 << x); cpu.gbCPUTicks = 8; }
+                return () => { cpu.RC |= (1 << x); cpu.cpuTicks = 8; }
             } (this, i);
             this.MNCB[o | 1] = new Function("return 'SET " + i + ",C';");
             this.OPCB[o | 2] = function (cpu: CPU, x: number) {
-                return () => { cpu.RD |= (1 << x); cpu.gbCPUTicks = 8; }
+                return () => { cpu.RD |= (1 << x); cpu.cpuTicks = 8; }
             } (this, i);
             this.MNCB[o | 2] = new Function("return 'SET " + i + ",D';");
             this.OPCB[o | 3] = function (cpu: CPU, x: number) {
-                return () => { cpu.RE |= (1 << x); cpu.gbCPUTicks = 8; }
+                return () => { cpu.RE |= (1 << x); cpu.cpuTicks = 8; }
             } (this, i);
             this.MNCB[o | 3] = new Function("return 'SET " + i + ",E';");
             this.OPCB[o | 4] = function (cpu: CPU, x: number) {
-                return () => { cpu.HL |= (256 << x); cpu.gbCPUTicks = 8; }
+                return () => { cpu.HL |= (256 << x); cpu.cpuTicks = 8; }
             } (this, i);
             this.MNCB[o | 4] = new Function("return 'SET " + i + ",H';");
             this.OPCB[o | 5] = function (cpu: CPU, x: number) {
-                return () => { cpu.HL |= (1 << x); cpu.gbCPUTicks = 8; }
+                return () => { cpu.HL |= (1 << x); cpu.cpuTicks = 8; }
             } (this, i);
             this.MNCB[o | 5] = new Function("return 'SET " + i + ",L';");
             this.OPCB[o | 6] = function (cpu: CPU, x: number) {
-                return () => { MEMW(cpu.HL, MEMR(cpu.HL) | (1 << x)); cpu.gbCPUTicks = 16; }
+                return () => { MEMW(cpu.HL, MEMR(cpu.HL) | (1 << x)); cpu.cpuTicks = 16; }
             } (this, i);
             this.MNCB[o | 6] = new Function("return 'SET " + i + ",(HL)';");
         }
     }
 
     initializeMN() {
-        this.MN[0x01] = () => { return 'LD BC,0x' + hex4((MEMR(this.PC + 2) << 8) + MEMR(this.PC + 1)); };
-        this.MN[0x00] = () => { return 'NOP'; };
-        this.MN[0x02] = () => { return 'LD (BC),A'; };
-        this.MN[0x03] = () => { return 'INC BC'; };
-        this.MN[0x04] = () => { return 'INC B'; };
-        this.MN[0x05] = () => { return 'DEC B'; };
-        this.MN[0x06] = () => { return 'LD B,0x' + hex2(MEMR(this.PC + 1)); };
-        this.MN[0x07] = () => { return 'RLCA'; };
-        this.MN[0x08] = () => { return 'LD(0x' + hex4((MEMR(this.PC + 2) << 8) + MEMR(this.PC + 1)) + '),SP'; };
-        this.MN[0x09] = () => { return 'ADD HL,BC'; };
-        this.MN[0x0A] = () => { return 'LD A,(BC)'; };
-        this.MN[0x0B] = () => { return 'DEC BC'; };
-        this.MN[0x0C] = () => { return 'INC C'; };
-        this.MN[0x0D] = () => { return 'DEC C'; };
-        this.MN[0x0E] = () => { return 'LD C,0x' + hex2(MEMR(this.PC + 1)); };
-        this.MN[0x0F] = () => { return 'RRCA'; };
-        this.MN[0x10] = () => { return 'STOP'; };
-        this.MN[0x11] = () => { return 'LD DE,0x' + hex4((MEMR(this.PC + 2) << 8) + MEMR(this.PC + 1)); };
-        this.MN[0x12] = () => { return 'LD (DE),A'; };
-        this.MN[0x13] = () => { return 'INC DE'; };
-        this.MN[0x14] = () => { return 'INC D'; };
-        this.MN[0x15] = () => { return 'DEC D'; };
-        this.MN[0x16] = () => { return 'LD D,0x' + hex2(MEMR(this.PC + 1)); };
-        this.MN[0x17] = () => { return 'RLA'; };
-        this.MN[0x18] = () => { return 'JR ' + sb(MEMR(this.PC + 1)) + '; 0x' + hex2(MEMR(this.PC + 1)); };
-        this.MN[0x19] = () => { return 'ADD HL,DE'; };
-        this.MN[0x1A] = () => { return 'LD A,(DE)'; };
-        this.MN[0x1B] = () => { return 'DEC DE'; };
-        this.MN[0x1C] = () => { return 'INC E'; };
-        this.MN[0x1D] = () => { return 'DEC E'; };
-        this.MN[0x1E] = () => { return 'LD E,0x' + hex2(MEMR(this.PC + 1)); };
-        this.MN[0x1F] = () => { return 'RRA'; };
-        this.MN[0x20] = () => { return 'JR NZ,' + sb(MEMR(this.PC + 1)) + '; 0x' + hex2(MEMR(this.PC + 1)); };
-        this.MN[0x21] = () => { return 'LD HL,0x' + hex4((MEMR(this.PC + 2) << 8) + MEMR(this.PC + 1)); };
-        this.MN[0x22] = () => { return 'LDI (HL),A'; };
-        this.MN[0x23] = () => { return 'INC HL'; };
-        this.MN[0x24] = () => { return 'INC H'; };
-        this.MN[0x25] = () => { return 'DEC H'; };
-        this.MN[0x26] = () => { return 'LD H,0x' + hex2(MEMR(this.PC + 1)); };
-        this.MN[0x27] = () => { return 'DAA'; };
-        this.MN[0x28] = () => { return 'JR Z,' + sb(MEMR(this.PC + 1)) + '; 0x' + hex2(MEMR(this.PC + 1)); };
-        this.MN[0x29] = () => { return 'ADD HL,HL'; };
-        this.MN[0x2A] = () => { return 'LDI A,(HL)'; };
-        this.MN[0x2B] = () => { return 'DEC HL'; };
-        this.MN[0x2C] = () => { return 'INC L'; };
-        this.MN[0x2D] = () => { return 'DEC L'; };
-        this.MN[0x2E] = () => { return 'LD L,0x' + hex2(MEMR(this.PC + 1)); };
-        this.MN[0x2F] = () => { return 'CPL'; };
-        this.MN[0x30] = () => { return 'JR NC,' + sb(MEMR(this.PC + 1)) + '; 0x' + hex2(MEMR(this.PC + 1)); };
-        this.MN[0x31] = () => { return 'LD SP,0x' + hex4((MEMR(this.PC + 2) << 8) + MEMR(this.PC + 1)); };
-        this.MN[0x32] = () => { return 'LDD (HL),A'; };
-        this.MN[0x33] = () => { return 'INC SP'; };
-        this.MN[0x34] = () => { return 'INC (HL)'; };
-        this.MN[0x35] = () => { return 'DEC (HL)'; };
-        this.MN[0x36] = () => { return 'LD (HL),0x' + hex2(MEMR(this.PC + 1)); };
-        this.MN[0x37] = () => { return 'SCF'; };
-        this.MN[0x38] = () => { return 'JR C,' + sb(MEMR(this.PC + 1)) + '; 0x' + hex2(MEMR(this.PC + 1)); };
-        this.MN[0x39] = () => { return 'ADD HL,SP'; };
-        this.MN[0x3A] = () => { return 'LDD A,(HL)'; };
-        this.MN[0x3B] = () => { return 'DEC SP'; };
-        this.MN[0x3C] = () => { return 'INC A'; };
-        this.MN[0x3D] = () => { return 'DEC A'; };
-        this.MN[0x3E] = () => { return 'LD A,0x' + hex2(MEMR(this.PC + 1)); }; // ???
-        this.MN[0x3F] = () => { return 'CCF'; };
-        this.MN[0x40] = () => { return 'LD B,B'; };
-        this.MN[0x41] = () => { return 'LD B,C'; };
-        this.MN[0x42] = () => { return 'LD B,D'; };
-        this.MN[0x43] = () => { return 'LD B,E'; };
-        this.MN[0x44] = () => { return 'LD B,H'; };
-        this.MN[0x45] = () => { return 'LD B,L'; };
-        this.MN[0x46] = () => { return 'LD B,(HL)'; };
-        this.MN[0x47] = () => { return 'LD B,A'; };
-        this.MN[0x48] = () => { return 'LD C,B'; };
-        this.MN[0x49] = () => { return 'LD C,C'; };
-        this.MN[0x4A] = () => { return 'LD C,D'; };
-        this.MN[0x4B] = () => { return 'LD C,E'; };
-        this.MN[0x4C] = () => { return 'LD C,H'; };
-        this.MN[0x4D] = () => { return 'LD C,L'; };
-        this.MN[0x4E] = () => { return 'LD C,(HL)'; };
-        this.MN[0x4F] = () => { return 'LD C,A'; };
-        this.MN[0x50] = () => { return 'LD D,B'; };
-        this.MN[0x51] = () => { return 'LD D,C'; };
-        this.MN[0x52] = () => { return 'LD D,D'; };
-        this.MN[0x53] = () => { return 'LD D,E'; };
-        this.MN[0x54] = () => { return 'LD D,H'; };
-        this.MN[0x55] = () => { return 'LD D,L'; };
-        this.MN[0x56] = () => { return 'LD D,(HL)'; };
-        this.MN[0x57] = () => { return 'LD D,A'; };
-        this.MN[0x58] = () => { return 'LD E,B'; };
-        this.MN[0x59] = () => { return 'LD E,C'; };
-        this.MN[0x5A] = () => { return 'LD E,D'; };
-        this.MN[0x5B] = () => { return 'LD E,E'; };
-        this.MN[0x5C] = () => { return 'LD E,H'; };
-        this.MN[0x5D] = () => { return 'LD E,L'; };
-        this.MN[0x5E] = () => { return 'LD E,(HL)'; };
-        this.MN[0x5F] = () => { return 'LD E,A'; };
-        this.MN[0x60] = () => { return 'LD H,B'; };
-        this.MN[0x61] = () => { return 'LD H,C'; };
-        this.MN[0x62] = () => { return 'LD H,D'; };
-        this.MN[0x63] = () => { return 'LD H,E'; };
-        this.MN[0x64] = () => { return 'LD H,H'; };
-        this.MN[0x65] = () => { return 'LD H,L'; };
-        this.MN[0x66] = () => { return 'LD H,(HL)'; };
-        this.MN[0x67] = () => { return 'LD H,A'; };
-        this.MN[0x68] = () => { return 'LD L,B'; };
-        this.MN[0x69] = () => { return 'LD L,C'; };
-        this.MN[0x6A] = () => { return 'LD L,D'; };
-        this.MN[0x6B] = () => { return 'LD L,E'; };
-        this.MN[0x6C] = () => { return 'LD L,H'; };
-        this.MN[0x6D] = () => { return 'LD L,L'; };
-        this.MN[0x6E] = () => { return 'LD L,(HL)'; };
-        this.MN[0x6F] = () => { return 'LD L,A'; };
-        this.MN[0x70] = () => { return 'LD (HL),B'; };
-        this.MN[0x71] = () => { return 'LD (HL),C'; };
-        this.MN[0x72] = () => { return 'LD (HL),D'; };
-        this.MN[0x73] = () => { return 'LD (HL),E'; };
-        this.MN[0x74] = () => { return 'LD (HL),H'; };
-        this.MN[0x75] = () => { return 'LD (HL),L'; };
-        this.MN[0x76] = () => { return 'HALT'; };
-        this.MN[0x77] = () => { return 'LD (HL),A'; };
-        this.MN[0x78] = () => { return 'LD A,B'; };
-        this.MN[0x79] = () => { return 'LD A,C'; };
-        this.MN[0x7A] = () => { return 'LD A,D'; };
-        this.MN[0x7B] = () => { return 'LD A,E'; };
-        this.MN[0x7C] = () => { return 'LD A,H'; };
-        this.MN[0x7D] = () => { return 'LD A,L'; };
-        this.MN[0x7E] = () => { return 'LD A,(HL)'; };
-        this.MN[0x7F] = () => { return 'LD A,A'; };
-        this.MN[0x80] = () => { return 'ADD A,B'; };
-        this.MN[0x81] = () => { return 'ADD A,C'; };
-        this.MN[0x82] = () => { return 'ADD A,D'; };
-        this.MN[0x83] = () => { return 'ADD A,E'; };
-        this.MN[0x84] = () => { return 'ADD A,H'; };
-        this.MN[0x85] = () => { return 'ADD A,L'; };
-        this.MN[0x86] = () => { return 'ADD A,(HL)'; };
-        this.MN[0x87] = () => { return 'ADD A,A'; };
-        this.MN[0x88] = () => { return 'ADC A,B'; };
-        this.MN[0x89] = () => { return 'ADC A,C'; };
-        this.MN[0x8A] = () => { return 'ADC A,D'; };
-        this.MN[0x8B] = () => { return 'ADC A,E'; };
-        this.MN[0x8C] = () => { return 'ADC A,H'; };
-        this.MN[0x8D] = () => { return 'ADC A,L'; };
-        this.MN[0x8E] = () => { return 'ADC A,(HL)'; };
-        this.MN[0x8F] = () => { return 'ADC A,A'; };
-        this.MN[0x90] = () => { return 'SUB B'; };
-        this.MN[0x91] = () => { return 'SUB C'; };
-        this.MN[0x92] = () => { return 'SUB D'; };
-        this.MN[0x93] = () => { return 'SUB E'; };
-        this.MN[0x94] = () => { return 'SUB H'; };
-        this.MN[0x95] = () => { return 'SUB L'; };
-        this.MN[0x96] = () => { return 'SUB (HL)'; };
-        this.MN[0x97] = () => { return 'SUB A'; };
-        this.MN[0x98] = () => { return 'SBC A,B'; };
-        this.MN[0x99] = () => { return 'SBC A,C'; };
-        this.MN[0x9A] = () => { return 'SBC A,D'; };
-        this.MN[0x9B] = () => { return 'SBC A,E'; };
-        this.MN[0x9C] = () => { return 'SBC A,H'; };
-        this.MN[0x9D] = () => { return 'SBC A,L'; };
-        this.MN[0x9E] = () => { return 'SBC A,(HL)'; };
-        this.MN[0x9F] = () => { return 'SBC A,A'; };
-        this.MN[0xA0] = () => { return 'AND B'; };
-        this.MN[0xA1] = () => { return 'AND C'; };
-        this.MN[0xA2] = () => { return 'AND D'; };
-        this.MN[0xA3] = () => { return 'AND E'; };
-        this.MN[0xA4] = () => { return 'AND H'; };
-        this.MN[0xA5] = () => { return 'AND L'; };
-        this.MN[0xA6] = () => { return 'AND (HL)'; };
-        this.MN[0xA7] = () => { return 'AND A'; };
-        this.MN[0xA8] = () => { return 'XOR B'; };
-        this.MN[0xA9] = () => { return 'XOR C'; };
-        this.MN[0xAA] = () => { return 'XOR D'; };
-        this.MN[0xAB] = () => { return 'XOR E'; };
-        this.MN[0xAC] = () => { return 'XOR H'; };
-        this.MN[0xAD] = () => { return 'XOR L'; };
-        this.MN[0xAE] = () => { return 'XOR (HL)'; };
-        this.MN[0xAF] = () => { return 'XOR A'; };
-        this.MN[0xB0] = () => { return 'OR B'; };
-        this.MN[0xB1] = () => { return 'OR C'; };
-        this.MN[0xB2] = () => { return 'OR D'; };
-        this.MN[0xB3] = () => { return 'OR E'; };
-        this.MN[0xB4] = () => { return 'OR H'; };
-        this.MN[0xB5] = () => { return 'OR L'; };
-        this.MN[0xB6] = () => { return 'OR (HL)'; };
-        this.MN[0xB7] = () => { return 'OR A'; };
-        this.MN[0xB8] = () => { return 'CP B'; };
-        this.MN[0xB9] = () => { return 'CP C'; };
-        this.MN[0xBA] = () => { return 'CP D'; };
-        this.MN[0xBB] = () => { return 'CP E'; };
-        this.MN[0xBC] = () => { return 'CP H'; };
-        this.MN[0xBD] = () => { return 'CP L'; };
-        this.MN[0xBE] = () => { return 'CP (HL)'; };
-        this.MN[0xBF] = () => { return 'CP A'; };
-        this.MN[0xC0] = () => { return 'RET NZ'; };
-        this.MN[0xC1] = () => { return 'POP BC'; };
-        this.MN[0xC2] = () => { return 'JP NZ,0x' + hex(MEMR(this.PC + 1) | (MEMR(this.PC + 2) << 8)); };
-        this.MN[0xC3] = () => { return 'JP 0x' + hex(MEMR(this.PC + 1) | (MEMR(this.PC + 2) << 8)); };
-        this.MN[0xC4] = () => { return 'CALL NZ,0x' + hex(MEMR(this.PC + 1) | (MEMR(this.PC + 2) << 8)); };
-        this.MN[0xC5] = () => { return 'PUSH BC'; };
-        this.MN[0xC6] = () => { return 'ADD A,0x' + hex2(MEMR(this.PC + 1)); };
-        this.MN[0xC7] = () => { return 'RST 0x00'; };
-        this.MN[0xC8] = () => { return 'RET Z'; };
-        this.MN[0xC9] = () => { return 'RET'; };
-        this.MN[0xCA] = () => { return 'JP Z,0x' + hex(MEMR(this.PC + 1) | (MEMR(this.PC + 2) << 8)); };
-        this.MN[0xCB] = () => { return this.MNCB[MEMR(this.PC + 1)](); };
-        this.MN[0xCC] = () => { return 'CALL Z,0x' + hex(MEMR(this.PC + 1) | (MEMR(this.PC + 2) << 8)); };
-        this.MN[0xCD] = () => { return 'CALL 0x' + hex(MEMR(this.PC + 1) | (MEMR(this.PC + 2) << 8)); };
-        this.MN[0xCE] = () => { return 'ADC A,0x' + hex2(MEMR(this.PC + 1)); };
-        this.MN[0xCF] = () => { return 'RST 0x08'; };
-        this.MN[0xD0] = () => { return 'RET NC'; };
-        this.MN[0xD1] = () => { return 'POP DE'; };
-        this.MN[0xD2] = () => { return 'JP NC,0x' + hex(MEMR(this.PC + 1) | (MEMR(this.PC + 2) << 8)); };
-        this.MN[0xD4] = () => { return 'CALL NC,0x' + hex(MEMR(this.PC + 1) | (MEMR(this.PC + 2) << 8)); };
-        this.MN[0xD5] = () => { return 'PUSH DE'; };
-        this.MN[0xD6] = () => { return 'SUB 0x' + hex2(MEMR(this.PC + 1)); };
-        this.MN[0xD7] = () => { return 'RST 0x10'; };
-        this.MN[0xD8] = () => { return 'RET C'; };
-        this.MN[0xD9] = () => { return 'RETI'; };
-        this.MN[0xDA] = () => { return 'JP C,0x' + hex(MEMR(this.PC + 1) | (MEMR(this.PC + 2) << 8)); };
-        this.MN[0xDC] = () => { return 'CALL C,0x' + hex(MEMR(this.PC + 1) | (MEMR(this.PC + 2) << 8)); };
-        this.MN[0xDE] = () => { return 'SBC A,0x' + hex2(MEMR(this.PC + 1)); };
-        this.MN[0xDF] = () => { return 'RST 0x18'; };
-        this.MN[0xE0] = () => { return 'LD (0xFF00+0x' + hex2(MEMR(this.PC + 1)) + '),A'; };
-        this.MN[0xE1] = () => { return 'POP HL'; };
-        this.MN[0xE2] = () => { return 'LD (0xFF00+C),A'; };
-        this.MN[0xE5] = () => { return 'PUSH HL'; };
-        this.MN[0xE6] = () => { return 'AND 0x' + hex2(MEMR(this.PC + 1)); };
-        this.MN[0xE7] = () => { return 'RST 0x20'; };
-        this.MN[0xE8] = () => { return 'ADD SP,0x' + hex2(MEMR(this.PC + 1)); };
-        this.MN[0xE9] = () => { return 'JP (HL)'; };
-        this.MN[0xEA] = () => { return 'LD (0x' + hex4((MEMR(this.PC + 2) << 8) | MEMR(this.PC + 1)) + '),A'; };
-        this.MN[0xEE] = () => { return 'XOR 0x' + hex2(MEMR(this.PC + 1)); };
-        this.MN[0xEF] = () => { return 'RST 0x28'; };
-        this.MN[0xF0] = () => { return 'LD A,(0xFF00+0x' + hex2(MEMR(this.PC + 1)) + ')'; };
-        this.MN[0xF1] = () => { return 'POP AF'; };
-        this.MN[0xF2] = () => { return 'LD A,(0xFF00+C)'; };
-        this.MN[0xF3] = () => { return 'DI'; };
-        this.MN[0xF5] = () => { return 'PUSH AF'; };
-        this.MN[0xF6] = () => { return 'OR 0x' + hex2(MEMR(this.PC + 1)); };
-        this.MN[0xF7] = () => { return 'RST 0x30'; };
-        this.MN[0xF8] = () => { return 'LD HL,SP+0x' + hex2(MEMR(this.PC + 1)); };
-        this.MN[0xF9] = () => { return 'LD SP,HL'; };
-        this.MN[0xFA] = () => { return 'LD A,(0x' + hex4((MEMR(this.PC + 2) << 8) + MEMR(this.PC + 1)) + ')'; };
-        this.MN[0xFB] = () => { return 'EI'; };
-        this.MN[0xFE] = () => { return 'CP ' + MEMR(this.PC + 1) + '; 0x' + hex2(MEMR(this.PC + 1)); };
-        this.MN[0xFF] = () => { return 'RST 0x38'; };
+        this.MN[0x01] = () => 'LD BC,0x' + hex4((MEMR(this.PC + 2) << 8) + MEMR(this.PC + 1));
+        this.MN[0x00] = () => 'NOP';
+        this.MN[0x02] = () => 'LD (BC),A';
+        this.MN[0x03] = () => 'INC BC';
+        this.MN[0x04] = () => 'INC B';
+        this.MN[0x05] = () => 'DEC B';
+        this.MN[0x06] = () => 'LD B,0x' + hex2(MEMR(this.PC + 1));
+        this.MN[0x07] = () => 'RLCA';
+        this.MN[0x08] = () => 'LD(0x' + hex4((MEMR(this.PC + 2) << 8) + MEMR(this.PC + 1)) + '),SP';
+        this.MN[0x09] = () => 'ADD HL,BC';
+        this.MN[0x0A] = () => 'LD A,(BC)';
+        this.MN[0x0B] = () => 'DEC BC';
+        this.MN[0x0C] = () => 'INC C';
+        this.MN[0x0D] = () => 'DEC C';
+        this.MN[0x0E] = () => 'LD C,0x' + hex2(MEMR(this.PC + 1));
+        this.MN[0x0F] = () => 'RRCA';
+        this.MN[0x10] = () => 'STOP';
+        this.MN[0x11] = () => 'LD DE,0x' + hex4((MEMR(this.PC + 2) << 8) + MEMR(this.PC + 1));
+        this.MN[0x12] = () => 'LD (DE),A';
+        this.MN[0x13] = () => 'INC DE';
+        this.MN[0x14] = () => 'INC D';
+        this.MN[0x15] = () => 'DEC D';
+        this.MN[0x16] = () => 'LD D,0x' + hex2(MEMR(this.PC + 1));
+        this.MN[0x17] = () => 'RLA';
+        this.MN[0x18] = () => 'JR ' + sb(MEMR(this.PC + 1)) + '; 0x' + hex2(MEMR(this.PC + 1));
+        this.MN[0x19] = () => 'ADD HL,DE';
+        this.MN[0x1A] = () => 'LD A,(DE)';
+        this.MN[0x1B] = () => 'DEC DE';
+        this.MN[0x1C] = () => 'INC E';
+        this.MN[0x1D] = () => 'DEC E';
+        this.MN[0x1E] = () => 'LD E,0x' + hex2(MEMR(this.PC + 1));
+        this.MN[0x1F] = () => 'RRA';
+        this.MN[0x20] = () => 'JR NZ,' + sb(MEMR(this.PC + 1)) + '; 0x' + hex2(MEMR(this.PC + 1));
+        this.MN[0x21] = () => 'LD HL,0x' + hex4((MEMR(this.PC + 2) << 8) + MEMR(this.PC + 1));
+        this.MN[0x22] = () => 'LDI (HL),A';
+        this.MN[0x23] = () => 'INC HL';
+        this.MN[0x24] = () => 'INC H';
+        this.MN[0x25] = () => 'DEC H';
+        this.MN[0x26] = () => 'LD H,0x' + hex2(MEMR(this.PC + 1));
+        this.MN[0x27] = () => 'DAA';
+        this.MN[0x28] = () => 'JR Z,' + sb(MEMR(this.PC + 1)) + '; 0x' + hex2(MEMR(this.PC + 1));
+        this.MN[0x29] = () => 'ADD HL,HL';
+        this.MN[0x2A] = () => 'LDI A,(HL)';
+        this.MN[0x2B] = () => 'DEC HL';
+        this.MN[0x2C] = () => 'INC L';
+        this.MN[0x2D] = () => 'DEC L';
+        this.MN[0x2E] = () => 'LD L,0x' + hex2(MEMR(this.PC + 1));
+        this.MN[0x2F] = () => 'CPL';
+        this.MN[0x30] = () => 'JR NC,' + sb(MEMR(this.PC + 1)) + '; 0x' + hex2(MEMR(this.PC + 1));
+        this.MN[0x31] = () => 'LD SP,0x' + hex4((MEMR(this.PC + 2) << 8) + MEMR(this.PC + 1));
+        this.MN[0x32] = () => 'LDD (HL),A';
+        this.MN[0x33] = () => 'INC SP';
+        this.MN[0x34] = () => 'INC (HL)';
+        this.MN[0x35] = () => 'DEC (HL)';
+        this.MN[0x36] = () => 'LD (HL),0x' + hex2(MEMR(this.PC + 1));
+        this.MN[0x37] = () => 'SCF';
+        this.MN[0x38] = () => 'JR C,' + sb(MEMR(this.PC + 1)) + '; 0x' + hex2(MEMR(this.PC + 1));
+        this.MN[0x39] = () => 'ADD HL,SP';
+        this.MN[0x3A] = () => 'LDD A,(HL)';
+        this.MN[0x3B] = () => 'DEC SP';
+        this.MN[0x3C] = () => 'INC A';
+        this.MN[0x3D] = () => 'DEC A';
+        this.MN[0x3E] = () => 'LD A,0x' + hex2(MEMR(this.PC + 1));  // ???
+        this.MN[0x3F] = () => 'CCF';
+        this.MN[0x40] = () => 'LD B,B';
+        this.MN[0x41] = () => 'LD B,C';
+        this.MN[0x42] = () => 'LD B,D';
+        this.MN[0x43] = () => 'LD B,E';
+        this.MN[0x44] = () => 'LD B,H';
+        this.MN[0x45] = () => 'LD B,L';
+        this.MN[0x46] = () => 'LD B,(HL)';
+        this.MN[0x47] = () => 'LD B,A';
+        this.MN[0x48] = () => 'LD C,B';
+        this.MN[0x49] = () => 'LD C,C';
+        this.MN[0x4A] = () => 'LD C,D';
+        this.MN[0x4B] = () => 'LD C,E';
+        this.MN[0x4C] = () => 'LD C,H';
+        this.MN[0x4D] = () => 'LD C,L';
+        this.MN[0x4E] = () => 'LD C,(HL)';
+        this.MN[0x4F] = () => 'LD C,A';
+        this.MN[0x50] = () => 'LD D,B';
+        this.MN[0x51] = () => 'LD D,C';
+        this.MN[0x52] = () => 'LD D,D';
+        this.MN[0x53] = () => 'LD D,E';
+        this.MN[0x54] = () => 'LD D,H';
+        this.MN[0x55] = () => 'LD D,L';
+        this.MN[0x56] = () => 'LD D,(HL)';
+        this.MN[0x57] = () => 'LD D,A';
+        this.MN[0x58] = () => 'LD E,B';
+        this.MN[0x59] = () => 'LD E,C';
+        this.MN[0x5A] = () => 'LD E,D';
+        this.MN[0x5B] = () => 'LD E,E';
+        this.MN[0x5C] = () => 'LD E,H';
+        this.MN[0x5D] = () => 'LD E,L';
+        this.MN[0x5E] = () => 'LD E,(HL)';
+        this.MN[0x5F] = () => 'LD E,A';
+        this.MN[0x60] = () => 'LD H,B';
+        this.MN[0x61] = () => 'LD H,C';
+        this.MN[0x62] = () => 'LD H,D';
+        this.MN[0x63] = () => 'LD H,E';
+        this.MN[0x64] = () => 'LD H,H';
+        this.MN[0x65] = () => 'LD H,L';
+        this.MN[0x66] = () => 'LD H,(HL)';
+        this.MN[0x67] = () => 'LD H,A';
+        this.MN[0x68] = () => 'LD L,B';
+        this.MN[0x69] = () => 'LD L,C';
+        this.MN[0x6A] = () => 'LD L,D';
+        this.MN[0x6B] = () => 'LD L,E';
+        this.MN[0x6C] = () => 'LD L,H';
+        this.MN[0x6D] = () => 'LD L,L';
+        this.MN[0x6E] = () => 'LD L,(HL)';
+        this.MN[0x6F] = () => 'LD L,A';
+        this.MN[0x70] = () => 'LD (HL),B';
+        this.MN[0x71] = () => 'LD (HL),C';
+        this.MN[0x72] = () => 'LD (HL),D';
+        this.MN[0x73] = () => 'LD (HL),E';
+        this.MN[0x74] = () => 'LD (HL),H';
+        this.MN[0x75] = () => 'LD (HL),L';
+        this.MN[0x76] = () => 'HALT';
+        this.MN[0x77] = () => 'LD (HL),A';
+        this.MN[0x78] = () => 'LD A,B';
+        this.MN[0x79] = () => 'LD A,C';
+        this.MN[0x7A] = () => 'LD A,D';
+        this.MN[0x7B] = () => 'LD A,E';
+        this.MN[0x7C] = () => 'LD A,H';
+        this.MN[0x7D] = () => 'LD A,L';
+        this.MN[0x7E] = () => 'LD A,(HL)';
+        this.MN[0x7F] = () => 'LD A,A';
+        this.MN[0x80] = () => 'ADD A,B';
+        this.MN[0x81] = () => 'ADD A,C';
+        this.MN[0x82] = () => 'ADD A,D';
+        this.MN[0x83] = () => 'ADD A,E';
+        this.MN[0x84] = () => 'ADD A,H';
+        this.MN[0x85] = () => 'ADD A,L';
+        this.MN[0x86] = () => 'ADD A,(HL)';
+        this.MN[0x87] = () => 'ADD A,A';
+        this.MN[0x88] = () => 'ADC A,B';
+        this.MN[0x89] = () => 'ADC A,C';
+        this.MN[0x8A] = () => 'ADC A,D';
+        this.MN[0x8B] = () => 'ADC A,E';
+        this.MN[0x8C] = () => 'ADC A,H';
+        this.MN[0x8D] = () => 'ADC A,L';
+        this.MN[0x8E] = () => 'ADC A,(HL)';
+        this.MN[0x8F] = () => 'ADC A,A';
+        this.MN[0x90] = () => 'SUB B';
+        this.MN[0x91] = () => 'SUB C';
+        this.MN[0x92] = () => 'SUB D';
+        this.MN[0x93] = () => 'SUB E';
+        this.MN[0x94] = () => 'SUB H';
+        this.MN[0x95] = () => 'SUB L';
+        this.MN[0x96] = () => 'SUB (HL)';
+        this.MN[0x97] = () => 'SUB A';
+        this.MN[0x98] = () => 'SBC A,B';
+        this.MN[0x99] = () => 'SBC A,C';
+        this.MN[0x9A] = () => 'SBC A,D';
+        this.MN[0x9B] = () => 'SBC A,E';
+        this.MN[0x9C] = () => 'SBC A,H';
+        this.MN[0x9D] = () => 'SBC A,L';
+        this.MN[0x9E] = () => 'SBC A,(HL)';
+        this.MN[0x9F] = () => 'SBC A,A';
+        this.MN[0xA0] = () => 'AND B';
+        this.MN[0xA1] = () => 'AND C';
+        this.MN[0xA2] = () => 'AND D';
+        this.MN[0xA3] = () => 'AND E';
+        this.MN[0xA4] = () => 'AND H';
+        this.MN[0xA5] = () => 'AND L';
+        this.MN[0xA6] = () => 'AND (HL)';
+        this.MN[0xA7] = () => 'AND A';
+        this.MN[0xA8] = () => 'XOR B';
+        this.MN[0xA9] = () => 'XOR C';
+        this.MN[0xAA] = () => 'XOR D';
+        this.MN[0xAB] = () => 'XOR E';
+        this.MN[0xAC] = () => 'XOR H';
+        this.MN[0xAD] = () => 'XOR L';
+        this.MN[0xAE] = () => 'XOR (HL)';
+        this.MN[0xAF] = () => 'XOR A';
+        this.MN[0xB0] = () => 'OR B';
+        this.MN[0xB1] = () => 'OR C';
+        this.MN[0xB2] = () => 'OR D';
+        this.MN[0xB3] = () => 'OR E';
+        this.MN[0xB4] = () => 'OR H';
+        this.MN[0xB5] = () => 'OR L';
+        this.MN[0xB6] = () => 'OR (HL)';
+        this.MN[0xB7] = () => 'OR A';
+        this.MN[0xB8] = () => 'CP B';
+        this.MN[0xB9] = () => 'CP C';
+        this.MN[0xBA] = () => 'CP D';
+        this.MN[0xBB] = () => 'CP E';
+        this.MN[0xBC] = () => 'CP H';
+        this.MN[0xBD] = () => 'CP L';
+        this.MN[0xBE] = () => 'CP (HL)';
+        this.MN[0xBF] = () => 'CP A';
+        this.MN[0xC0] = () => 'RET NZ';
+        this.MN[0xC1] = () => 'POP BC';
+        this.MN[0xC2] = () => 'JP NZ,0x' + hex(MEMR(this.PC + 1) | (MEMR(this.PC + 2) << 8));
+        this.MN[0xC3] = () => 'JP 0x' + hex(MEMR(this.PC + 1) | (MEMR(this.PC + 2) << 8));
+        this.MN[0xC4] = () => 'CALL NZ,0x' + hex(MEMR(this.PC + 1) | (MEMR(this.PC + 2) << 8));
+        this.MN[0xC5] = () => 'PUSH BC';
+        this.MN[0xC6] = () => 'ADD A,0x' + hex2(MEMR(this.PC + 1));
+        this.MN[0xC7] = () => 'RST 0x00';
+        this.MN[0xC8] = () => 'RET Z';
+        this.MN[0xC9] = () => 'RET';
+        this.MN[0xCA] = () => 'JP Z,0x' + hex(MEMR(this.PC + 1) | (MEMR(this.PC + 2) << 8));
+        this.MN[0xCB] = () => this.MNCB[MEMR(this.PC + 1)]();
+        this.MN[0xCC] = () => 'CALL Z,0x' + hex(MEMR(this.PC + 1) | (MEMR(this.PC + 2) << 8));
+        this.MN[0xCD] = () => 'CALL 0x' + hex(MEMR(this.PC + 1) | (MEMR(this.PC + 2) << 8));
+        this.MN[0xCE] = () => 'ADC A,0x' + hex2(MEMR(this.PC + 1));
+        this.MN[0xCF] = () => 'RST 0x08';
+        this.MN[0xD0] = () => 'RET NC';
+        this.MN[0xD1] = () => 'POP DE';
+        this.MN[0xD2] = () => 'JP NC,0x' + hex(MEMR(this.PC + 1) | (MEMR(this.PC + 2) << 8));
+        this.MN[0xD4] = () => 'CALL NC,0x' + hex(MEMR(this.PC + 1) | (MEMR(this.PC + 2) << 8));
+        this.MN[0xD5] = () => 'PUSH DE';
+        this.MN[0xD6] = () => 'SUB 0x' + hex2(MEMR(this.PC + 1));
+        this.MN[0xD7] = () => 'RST 0x10';
+        this.MN[0xD8] = () => 'RET C';
+        this.MN[0xD9] = () => 'RETI';
+        this.MN[0xDA] = () => 'JP C,0x' + hex(MEMR(this.PC + 1) | (MEMR(this.PC + 2) << 8));
+        this.MN[0xDC] = () => 'CALL C,0x' + hex(MEMR(this.PC + 1) | (MEMR(this.PC + 2) << 8));
+        this.MN[0xDE] = () => 'SBC A,0x' + hex2(MEMR(this.PC + 1));
+        this.MN[0xDF] = () => 'RST 0x18';
+        this.MN[0xE0] = () => 'LD (0xFF00+0x' + hex2(MEMR(this.PC + 1)) + '),A';
+        this.MN[0xE1] = () => 'POP HL';
+        this.MN[0xE2] = () => 'LD (0xFF00+C),A';
+        this.MN[0xE5] = () => 'PUSH HL';
+        this.MN[0xE6] = () => 'AND 0x' + hex2(MEMR(this.PC + 1));
+        this.MN[0xE7] = () => 'RST 0x20';
+        this.MN[0xE8] = () => 'ADD SP,0x' + hex2(MEMR(this.PC + 1));
+        this.MN[0xE9] = () => 'JP (HL)';
+        this.MN[0xEA] = () => 'LD (0x' + hex4((MEMR(this.PC + 2) << 8) | MEMR(this.PC + 1)) + '),A';
+        this.MN[0xEE] = () => 'XOR 0x' + hex2(MEMR(this.PC + 1));
+        this.MN[0xEF] = () => 'RST 0x28';
+        this.MN[0xF0] = () => 'LD A,(0xFF00+0x' + hex2(MEMR(this.PC + 1)) + ')';
+        this.MN[0xF1] = () => 'POP AF';
+        this.MN[0xF2] = () => 'LD A,(0xFF00+C)';
+        this.MN[0xF3] = () => 'DI';
+        this.MN[0xF5] = () => 'PUSH AF';
+        this.MN[0xF6] = () => 'OR 0x' + hex2(MEMR(this.PC + 1));
+        this.MN[0xF7] = () => 'RST 0x30';
+        this.MN[0xF8] = () => 'LD HL,SP+0x' + hex2(MEMR(this.PC + 1));
+        this.MN[0xF9] = () => 'LD SP,HL';
+        this.MN[0xFA] = () => 'LD A,(0x' + hex4((MEMR(this.PC + 2) << 8) + MEMR(this.PC + 1)) + ')';
+        this.MN[0xFB] = () => 'EI';
+        this.MN[0xFE] = () => 'CP ' + MEMR(this.PC + 1) + '; 0x' + hex2(MEMR(this.PC + 1));
+        this.MN[0xFF] = () => 'RST 0x38';
     }
 
     initializeMNCB() {
-        this.MNCB[0x00] = () => { return 'RLC B'; };
-        this.MNCB[0x01] = () => { return 'RLC C'; };
-        this.MNCB[0x02] = () => { return 'RLC D'; };
-        this.MNCB[0x03] = () => { return 'RLC E'; };
-        this.MNCB[0x04] = () => { return 'RLC H'; };
-        this.MNCB[0x05] = () => { return 'RLC L'; };
-        this.MNCB[0x06] = () => { return 'RLC (HL)'; };
-        this.MNCB[0x07] = () => { return 'RLC A'; };
-        this.MNCB[0x08] = () => { return 'RRC B'; };
-        this.MNCB[0x09] = () => { return 'RRC C'; };
-        this.MNCB[0x0A] = () => { return 'RRC D'; };
-        this.MNCB[0x0B] = () => { return 'RRC E'; };
-        this.MNCB[0x0C] = () => { return 'RRC H'; };
-        this.MNCB[0x0D] = () => { return 'RRC L'; };
-        this.MNCB[0x0E] = () => { return 'RRC (HL)'; };
-        this.MNCB[0x0F] = () => { return 'RRC A'; };
-        this.MNCB[0x10] = () => { return 'RL B'; };
-        this.MNCB[0x11] = () => { return 'RL C'; };
-        this.MNCB[0x12] = () => { return 'RL D'; };
-        this.MNCB[0x13] = () => { return 'RL E'; };
-        this.MNCB[0x14] = () => { return 'RL H'; };
-        this.MNCB[0x15] = () => { return 'RL L'; };
-        this.MNCB[0x16] = () => { return 'RL (HL)'; };
-        this.MNCB[0x17] = () => { return 'RL A'; };
-        this.MNCB[0x18] = () => { return 'RR B'; };
-        this.MNCB[0x19] = () => { return 'RR C'; };
-        this.MNCB[0x1A] = () => { return 'RR D'; };
-        this.MNCB[0x1B] = () => { return 'RR E'; };
-        this.MNCB[0x1C] = () => { return 'RR H'; };
-        this.MNCB[0x1D] = () => { return 'RR L'; };
-        this.MNCB[0x1E] = () => { return 'RR (HL)'; };
-        this.MNCB[0x1F] = () => { return 'RR A'; };
-        this.MNCB[0x20] = () => { return 'SLA B'; };
-        this.MNCB[0x21] = () => { return 'SLA C'; };
-        this.MNCB[0x22] = () => { return 'SLA D'; };
-        this.MNCB[0x23] = () => { return 'SLA E'; };
-        this.MNCB[0x24] = () => { return 'SLA H'; };
-        this.MNCB[0x25] = () => { return 'SLA L'; };
-        this.MNCB[0x26] = () => { return 'SLA (HL)'; };
-        this.MNCB[0x27] = () => { return 'SLA A'; };
-        this.MNCB[0x28] = () => { return 'SRA B'; };
-        this.MNCB[0x29] = () => { return 'SRA C'; };
-        this.MNCB[0x2A] = () => { return 'SRA D'; };
-        this.MNCB[0x2B] = () => { return 'SRA E'; };
-        this.MNCB[0x2C] = () => { return 'SRA H'; };
-        this.MNCB[0x2D] = () => { return 'SRA L'; };
-        this.MNCB[0x2E] = () => { return 'SRA (HL)'; };
-        this.MNCB[0x2F] = () => { return 'SRA A'; };
-        this.MNCB[0x30] = () => { return 'SWAP B'; };
-        this.MNCB[0x31] = () => { return 'SWAP C'; };
-        this.MNCB[0x32] = () => { return 'SWAP D'; };
-        this.MNCB[0x33] = () => { return 'SWAP E'; };
-        this.MNCB[0x34] = () => { return 'SWAP H'; };
-        this.MNCB[0x35] = () => { return 'SWAP L'; };
-        this.MNCB[0x36] = () => { return 'SWAP (HL)'; };
-        this.MNCB[0x37] = () => { return 'SWAP A'; };
-        this.MNCB[0x38] = () => { return 'SRL B'; };
-        this.MNCB[0x39] = () => { return 'SRL C'; };
-        this.MNCB[0x3A] = () => { return 'SRL D'; };
-        this.MNCB[0x3B] = () => { return 'SRL E'; };
-        this.MNCB[0x3C] = () => { return 'SRL H'; };
-        this.MNCB[0x3D] = () => { return 'SRL L'; };
-        this.MNCB[0x3E] = () => { return 'SRL (HL)'; };
-        this.MNCB[0x3F] = () => { return 'SRL A'; };
+        this.MNCB[0x00] = () => 'RLC B';
+        this.MNCB[0x01] = () => 'RLC C';
+        this.MNCB[0x02] = () => 'RLC D';
+        this.MNCB[0x03] = () => 'RLC E';
+        this.MNCB[0x04] = () => 'RLC H';
+        this.MNCB[0x05] = () => 'RLC L';
+        this.MNCB[0x06] = () => 'RLC (HL)';
+        this.MNCB[0x07] = () => 'RLC A';
+        this.MNCB[0x08] = () => 'RRC B';
+        this.MNCB[0x09] = () => 'RRC C';
+        this.MNCB[0x0A] = () => 'RRC D';
+        this.MNCB[0x0B] = () => 'RRC E';
+        this.MNCB[0x0C] = () => 'RRC H';
+        this.MNCB[0x0D] = () => 'RRC L';
+        this.MNCB[0x0E] = () => 'RRC (HL)';
+        this.MNCB[0x0F] = () => 'RRC A';
+        this.MNCB[0x10] = () => 'RL B';
+        this.MNCB[0x11] = () => 'RL C';
+        this.MNCB[0x12] = () => 'RL D';
+        this.MNCB[0x13] = () => 'RL E';
+        this.MNCB[0x14] = () => 'RL H';
+        this.MNCB[0x15] = () => 'RL L';
+        this.MNCB[0x16] = () => 'RL (HL)';
+        this.MNCB[0x17] = () => 'RL A';
+        this.MNCB[0x18] = () => 'RR B';
+        this.MNCB[0x19] = () => 'RR C';
+        this.MNCB[0x1A] = () => 'RR D';
+        this.MNCB[0x1B] = () => 'RR E';
+        this.MNCB[0x1C] = () => 'RR H';
+        this.MNCB[0x1D] = () => 'RR L';
+        this.MNCB[0x1E] = () => 'RR (HL)';
+        this.MNCB[0x1F] = () => 'RR A';
+        this.MNCB[0x20] = () => 'SLA B';
+        this.MNCB[0x21] = () => 'SLA C';
+        this.MNCB[0x22] = () => 'SLA D';
+        this.MNCB[0x23] = () => 'SLA E';
+        this.MNCB[0x24] = () => 'SLA H';
+        this.MNCB[0x25] = () => 'SLA L';
+        this.MNCB[0x26] = () => 'SLA (HL)';
+        this.MNCB[0x27] = () => 'SLA A';
+        this.MNCB[0x28] = () => 'SRA B';
+        this.MNCB[0x29] = () => 'SRA C';
+        this.MNCB[0x2A] = () => 'SRA D';
+        this.MNCB[0x2B] = () => 'SRA E';
+        this.MNCB[0x2C] = () => 'SRA H';
+        this.MNCB[0x2D] = () => 'SRA L';
+        this.MNCB[0x2E] = () => 'SRA (HL)';
+        this.MNCB[0x2F] = () => 'SRA A';
+        this.MNCB[0x30] = () => 'SWAP B';
+        this.MNCB[0x31] = () => 'SWAP C';
+        this.MNCB[0x32] = () => 'SWAP D';
+        this.MNCB[0x33] = () => 'SWAP E';
+        this.MNCB[0x34] = () => 'SWAP H';
+        this.MNCB[0x35] = () => 'SWAP L';
+        this.MNCB[0x36] = () => 'SWAP (HL)';
+        this.MNCB[0x37] = () => 'SWAP A';
+        this.MNCB[0x38] = () => 'SRL B';
+        this.MNCB[0x39] = () => 'SRL C';
+        this.MNCB[0x3A] = () => 'SRL D';
+        this.MNCB[0x3B] = () => 'SRL E';
+        this.MNCB[0x3C] = () => 'SRL H';
+        this.MNCB[0x3D] = () => 'SRL L';
+        this.MNCB[0x3E] = () => 'SRL (HL)';
+        this.MNCB[0x3F] = () => 'SRL A';
     }
 
     gb_Init_CPU() {
-        this.gbPause = true;
+        this.pause = true;
         this.RA = 0x01; // 0x01->GB/SGB; 0xFF->GBP; 0x11->GBC
         this.FZ = 0x01; // F=0xB0->Z1 N0 H1 C1
         this.FN = 0x00;
@@ -1422,7 +1432,7 @@ class CPU {
         this.PC = 0x0100;
         this.SP = 0xFFFE;
         this.HL = 0x014D;
-        this.gbCPUTicks = 0;
+        this.cpuTicks = 0;
     }
 
     static gbDAATable = [ // DDA code from VisualBoyAdvance
