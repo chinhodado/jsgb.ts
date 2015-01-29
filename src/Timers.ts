@@ -1,8 +1,11 @@
-///<reference path="jsgb.cpu.ts"/>
-///<reference path="jsgb.lcd.ts"/>
-///<reference path="jsgb.memory.ts"/>
-/*
- * jsgb.graphics.js v0.02 - Timers functions for JSGB, a GameBoy Emulator
+///<reference path="CPU.ts"/>
+///<reference path="LCD.ts"/>
+///<reference path="Memory.ts"/>
+/**
+ * Timers
+ * Part of gameboy.ts - a TypeScript GameBoy Emulator
+ *
+ * Copyright (C) 2015 Chin <chin.bimbo@gmail.com>
  * Copyright (C) 2009 Pedro Ladaria <Sonic1980 at Gmail dot com>
  *
  * This program is free software; you can redistribute it and/or

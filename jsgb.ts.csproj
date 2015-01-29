@@ -18,21 +18,21 @@
     <IISExpressUseClassicPipelineMode />
   </PropertyGroup>
   <ItemGroup>
-    <TypeScriptCompile Include="jsgb.cpu.ts" />
+    <TypeScriptCompile Include="src\CPU.ts" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="index.htm" />
-    <Content Include="jsgb.debugger.ts" />
-    <Content Include="jsgb.gameboy.ts" />
-    <Content Include="jsgb.input.ts" />
-    <Content Include="jsgb.interrupts.ts" />
-    <Content Include="jsgb.lcd.ts" />
-    <Content Include="jsgb.memory.ts" />
-    <Content Include="jsgb.rom.ts" />
+    <Content Include="src\Debugger.ts" />
+    <Content Include="src\Gameboy.ts" />
+    <Content Include="src\Input.ts" />
+    <Content Include="src\Interrupts.ts" />
+    <Content Include="src\LCD.ts" />
+    <Content Include="src\Memory.ts" />
+    <Content Include="src\Rom.ts" />
     <Content Include="jsgb.styles.css" />
-    <Content Include="jsgb.timers.ts" />
-    <Content Include="scrollbar.ts" />
-    <Content Include="toolbox.ts" />
+    <Content Include="src\Timers.ts" />
+    <Content Include="src\Scrollbar.ts" />
+    <Content Include="src\Utils.ts" />
   </ItemGroup>
   <PropertyGroup>
     <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">12.0</VisualStudioVersion>

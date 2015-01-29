@@ -1,6 +1,8 @@
-///<reference path="toolbox.ts"/>
-/*
- * scrollbar.js v0.1 - A simple scrollbar for JavaScript
+///<reference path="Utils.ts"/>
+/**
+ * A simple scrollbar
+ *
+ * Copyright (C) 2015 Chin <chin.bimbo@gmail.com>
  * Copyright (C) 2009 Pedro Ladaria <Sonic1980 at Gmail dot com>
  *
  * This program is free software; you can redistribute it and/or
@@ -12,7 +14,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
- *
  * ____________________________________________________________________________
  *
  * Note: this doesn't works in MSIE.
@@ -21,6 +22,7 @@
  * .SCROLLBAR
  * .SCROLLBAR > .BACKGROUND
  * .SCROLLBAR > .BACKGROUND > .DRAG
+ *
  */
 
 function dragMachine(dragid, onchange) {

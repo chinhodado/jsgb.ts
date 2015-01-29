@@ -1,8 +1,11 @@
-///<reference path="toolbox.ts"/>
-///<reference path="jsgb.memory.ts"/>
-///<reference path="jsgb.gameboy.ts"/>
-/*
- * jsgb.cpu.js v0.021 - GB CPU Emulator for JSGB, a JavaScript GameBoy Emulator
+///<reference path="Utils.ts"/>
+///<reference path="Memory.ts"/>
+///<reference path="Gameboy.ts"/>
+/**
+ * Implementation of the Gameboy Sharp LR35902 CPU
+ * Part of gameboy.ts - a TypeScript GameBoy Emulator
+ *
+ * Copyright (C) 2015 Chin <chin.bimbo@gmail.com>
  * Copyright (C) 2009 Pedro Ladaria <Sonic1980 at Gmail dot com>
  *
  * This program is free software; you can redistribute it and/or

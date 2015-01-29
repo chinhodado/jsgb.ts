@@ -1,6 +1,24 @@
-///<reference path="toolbox.ts"/>
-///<reference path="jsgb.debugger.ts"/>
-///<reference path="jsgb.interrupts.ts"/>
+///<reference path="Utils.ts"/>
+///<reference path="Debugger.ts"/>
+///<reference path="Interrupts.ts"/>
+/**
+ * Main implementation of the Gameboy
+ * Part of gameboy.ts - a TypeScript GameBoy Emulator
+ *
+ * Copyright (C) 2015 Chin <chin.bimbo@gmail.com>
+ * Copyright (C) 2009 Pedro Ladaria <Sonic1980 at Gmail dot com>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * version 2 as published by the Free Software Foundation.
+ * The full license is available at http://www.gnu.org/licenses/gpl.html
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ */
 
 var gbRunInterval;
 var gbFpsInterval;

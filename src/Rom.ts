@@ -1,6 +1,9 @@
-///<reference path="jsgb.memory.ts"/>
-/*
- * jsgb.rom.js v0.01 - ROM loader for JSGB, a GameBoy Emulator
+///<reference path="Memory.ts"/>
+/**
+ * ROM loader
+ * Part of gameboy.ts - a TypeScript GameBoy Emulator
+ *
+ * Copyright (C) 2015 Chin <chin.bimbo@gmail.com>
  * Copyright (C) 2009 Pedro Ladaria <Sonic1980 at Gmail dot com>
  *
  * This program is free software; you can redistribute it and/or

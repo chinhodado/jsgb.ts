@@ -1,6 +1,9 @@
-///<reference path="jsgb.memory.ts"/>
-/*
- * jsgb.input.js v0.02 - buttons input module for JSGB, a JS GameBoy Emulator
+///<reference path="Memory.ts"/>
+/**
+ * Buttons input module
+ * Part of gameboy.ts - a TypeScript GameBoy Emulator
+ *
+ * Copyright (C) 2015 Chin <chin.bimbo@gmail.com>
  * Copyright (C) 2009 Pedro Ladaria <Sonic1980 at Gmail dot com>
  *
  * This program is free software; you can redistribute it and/or

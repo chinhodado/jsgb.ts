@@ -1,5 +1,8 @@
-/*
- * jsgb.lcd.js v0.02 - LCD controller emulation for JSGB, a JS GameBoy Emulator
+/**
+ * LCD controller emulation
+ * Part of gameboy.ts - a TypeScript GameBoy Emulator
+ *
+ * Copyright (C) 2015 Chin <chin.bimbo@gmail.com>
  * Copyright (C) 2009 Pedro Ladaria <Sonic1980 at Gmail dot com>
  *
  * This program is free software; you can redistribute it and/or

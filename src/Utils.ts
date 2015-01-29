@@ -1,5 +1,8 @@
-/*
- * jsgb.toolbox.js - This is part of JSGB, a JavaScript GameBoy Emulator
+/**
+ * Utilities
+ * Part of gameboy.ts - a TypeScript GameBoy Emulator
+ *
+ * Copyright (C) 2015 Chin <chin.bimbo@gmail.com>
  * Copyright (C) 2009 Pedro Ladaria <Sonic1980 at Gmail dot com>
  *
  * This program is free software; you can redistribute it and/or

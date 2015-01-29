@@ -1,9 +1,12 @@
-///<reference path="jsgb.input.ts"/>
-///<reference path="jsgb.lcd.ts"/>
-///<reference path="jsgb.rom.ts"/>
-///<reference path="jsgb.timers.ts"/>
-/*
- * jsgb.debugger.js v0.02 - Memory module for JSGB, a GameBoy Emulator
+///<reference path="Input.ts"/>
+///<reference path="LCD.ts"/>
+///<reference path="Rom.ts"/>
+///<reference path="Timers.ts"/>
+/**
+ * Memory module
+ * Part of gameboy.ts - a TypeScript GameBoy Emulator
+ *
+ * Copyright (C) 2015 Chin <chin.bimbo@gmail.com>
  * Copyright (C) 2009 Pedro Ladaria <Sonic1980 at Gmail dot com>
  *
  * This program is free software; you can redistribute it and/or
