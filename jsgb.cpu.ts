@@ -317,7 +317,9 @@ class CPU {
         this.cpuTicks = 4;
     }
     HALT(): void {
-        if (this.gbIME) this.halt = true;
+        if (this.gbIME) {
+            this.halt = true;
+        }
         else {
             gb_Pause();
             alert('HALT instruction with interrupts disabled.');
